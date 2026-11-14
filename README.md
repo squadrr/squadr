@@ -27,6 +27,8 @@ Squadr connects to Xbox Live's own Looking for Group, so you see the same posts 
 
 Squadr updates itself. When a new version is out, you'll see **Update** in the status bar and in Settings.
 
+To publish a release, write what changed in `RELEASE_NOTES.md` first; it becomes the release text and the notes shown in the app.
+
 Needs Windows 10 or 11 and an Xbox (Microsoft) account.
 
 ## Privacy and your account

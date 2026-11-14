@@ -118,21 +118,33 @@ export function createFor(titleId: string | null) {
 
 // ---------------------------------------------------------------- games
 
+let gamesRun = 0;
+/** Your games, fast from what's known, then again after matching new PC games to their Xbox versions. */
 export async function loadGames() {
+  const run = ++gamesRun;
   set({ gamesError: null });
   try {
-    const games = await api.games();
+    const games = await api.games(false);
+    if (run !== gamesRun) return;
     remember(games);
     set({ games });
     loadCounts(games);
+    const full = await api.games(true);
+    if (run !== gamesRun) return;
+    const ids = (l: Title[]) => l.map((t) => t.titleId).join();
+    if (ids(full) !== ids(games)) {
+      remember(full);
+      set({ games: full });
+      loadCounts(full);
+    }
   } catch (e) {
-    set({ gamesError: errText(e), games: get().games ?? [] });
+    if (run === gamesRun) set({ gamesError: errText(e), games: get().games ?? [] });
   }
 }
 
 let countRun = 0;
 /** LFG counts for the side panel, a few at a time so we stay under Xbox's rate limits. */
-async function loadCounts(games: Title[]) {
+export async function loadCounts(games: Title[]) {
   const run = ++countRun;
   const pinned = get().settings?.pinned ?? [];
   const order = [...games].sort((a, b) => Number(pinned.includes(b.titleId)) - Number(pinned.includes(a.titleId))).slice(0, 16);

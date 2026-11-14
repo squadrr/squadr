@@ -69,10 +69,14 @@ pub struct Settings {
     /// Games added through search (kept so they stay in the side panel).
     pub extra_titles: Vec<String>,
     pub sound: bool,
+    /// Show the Xbox console version of each game (where the LFG posts are) instead of PC listings.
+    pub console_only: bool,
+    /// The start guide has been shown.
+    pub onboarded: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { show_side_panel: true, show_status_bar: true, language: "en".into(), pinned: vec![], extra_titles: vec![], sound: true }
+        Settings { show_side_panel: true, show_status_bar: true, language: "en".into(), pinned: vec![], extra_titles: vec![], sound: true, console_only: true, onboarded: false }
     }
 }

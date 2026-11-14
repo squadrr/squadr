@@ -103,3 +103,34 @@ fn probe_social_reads() {
     println!("my party: {:?}", crate::party::my_party(&x, &me).map(|p| p.map(|p| p.members.len())));
 }
 
+
+/// Show what "Your games" becomes with Xbox versions only (read-only; no cache written).
+#[test]
+#[ignore]
+fn probe_console_games() {
+    use crate::lfg;
+    let auth = Arc::new(Auth::new(&app_dir()));
+    let x = Xbl::new(auth.clone());
+    let me = auth.xsts().expect("signed in").xuid;
+    let list = lfg::title_history(&x, &me).unwrap();
+    let (out, todo) = lfg::consoleize(list.clone(), &Default::default(), &[]);
+    println!("history {} -> console {} , todo {}", list.len(), out.len(), todo.len());
+    let mut map = std::collections::HashMap::new();
+    for t in todo.iter().filter(|t| lfg::is_xbl_pc(t)) {
+        let n = lfg::count(&x, &t.scid, &Default::default());
+        println!("  PC-only {:<36} posts {:?}", t.name, n.map_err(|e| e.status));
+    }
+    for t in todo.iter().take(24) {
+        let r = lfg::find_console_version(&x, &t.name);
+        println!("  {:<40} -> {:?}", t.name, r.as_ref().map(|o| o.as_ref().map(|c| format!("{} {}", c.title_id, c.name))));
+        if let Ok(o) = r {
+            map.insert(t.title_id.clone(), o.map(|c| c.title_id).unwrap_or_default());
+        }
+    }
+    let ids: Vec<String> = map.values().filter(|v| !v.is_empty()).cloned().collect();
+    let known = lfg::titles_by_id(&x, &ids).unwrap_or_default();
+    let (out, _) = lfg::consoleize(list, &map, &known);
+    for t in out.iter().take(30) {
+        println!("{} {:?} {}", t.title_id, t.devices, t.name);
+    }
+}

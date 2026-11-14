@@ -28,6 +28,15 @@ jobs:
 
       - run: npm ci
 
+      - id: notes
+        shell: bash
+        run: |
+          {
+            echo 'body<<NOTES_EOF'
+            cat RELEASE_NOTES.md
+            echo 'NOTES_EOF'
+          } >> "$GITHUB_OUTPUT"
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -36,14 +45,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: Squadr ${{ github.ref_name }}
-          releaseBody: |
-            Download **Squadr_*_x64-setup.exe** below and run it.
-
-            Windows may say "Windows protected your PC" because the installer isn't code-signed yet. Click **More info**, then **Run anyway**.
-
-            Already have Squadr? It updates itself: look for **Update** in the status bar or in Settings.
-
-            Squadr is an independent app, not affiliated with Microsoft or Xbox.
+          releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true

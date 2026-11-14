@@ -1,15 +1,17 @@
-import { Download, ExternalLink, LoaderCircle, LogOut, RefreshCw } from "lucide-react";
+import { Download, ExternalLink, LoaderCircle, LogOut, RefreshCw, Sparkles } from "lucide-react";
 import { Avatar, Switch } from "../components/common";
-import { saveSettings, signOut } from "../lib/actions";
+import { loadGames, saveSettings, signOut } from "../lib/actions";
 import { api } from "../lib/api";
 import { LANGUAGES, xboxProfileUrl } from "../lib/format";
-import { useApp } from "../lib/store";
+import { set, useApp } from "../lib/store";
+import { DiscordIcon, TikTokIcon, useLinks, YouTubeIcon } from "./Welcome";
 import { checkForUpdates, installUpdate, useUpdate } from "../lib/update";
 
 export function SettingsView() {
   const { settings, auth, people, rta } = useApp();
   const me = auth ? people[auth.xuid] : null;
   const up = useUpdate();
+  const links = useLinks();
   if (!settings) return null;
   return (
     <div className="view" style={{ gridTemplateRows: "1fr" }}>
@@ -60,6 +62,13 @@ export function SettingsView() {
               </div>
               <Switch on={settings.sound} onClick={() => saveSettings({ sound: !settings.sound })} />
             </div>
+            <div className="form-row">
+              <div className="lbl">
+                <b>Xbox versions only</b>
+                <span>Show the Xbox console version of each game, where console players post. PC-only games still show when they have 15 or more open posts.</span>
+              </div>
+              <Switch on={settings.consoleOnly} onClick={() => saveSettings({ consoleOnly: !settings.consoleOnly }).then(() => loadGames())} />
+            </div>
           </div>
 
           <div className="group-title">Interface</div>
@@ -77,6 +86,39 @@ export function SettingsView() {
                 <span>Connection and what you're hosting, along the bottom.</span>
               </div>
               <Switch on={settings.showStatusBar} onClick={() => saveSettings({ showStatusBar: !settings.showStatusBar })} />
+            </div>
+          </div>
+
+          <div className="group-title">Community</div>
+          <div className="form-card">
+            <div className="form-row">
+              <div className="lbl">
+                <b>Follow Squadr</b>
+                <span>Updates, tips and people to play with.</span>
+              </div>
+              {links.discord && (
+                <button className="btn-ghost" onClick={() => api.openUrl(links.discord)}>
+                  <DiscordIcon /> Discord
+                </button>
+              )}
+              <button className="btn-ghost" onClick={() => api.openUrl(links.youtube)}>
+                <YouTubeIcon /> YouTube
+              </button>
+              <button className="btn-ghost" onClick={() => api.openUrl(links.tiktok)}>
+                <TikTokIcon /> TikTok
+              </button>
+            </div>
+            <div className="form-row">
+              <div className="lbl">
+                <b>Start guide</b>
+                <span>The welcome tour from your first sign-in.</span>
+              </div>
+              <button className="btn-ghost" onClick={() => set({ guide: true })}>
+                <Sparkles size={14} /> Show again
+              </button>
+              <button className="btn-ghost" onClick={() => api.openUrl(links.github)} title="Source code and releases">
+                <ExternalLink size={14} /> GitHub
+              </button>
             </div>
           </div>
 

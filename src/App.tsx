@@ -15,6 +15,7 @@ import { Friends } from "./views/Friends";
 import { dmRef, loadInbox, loadParty, openChat } from "./lib/social";
 import { SettingsView } from "./views/Settings";
 import { SignIn } from "./views/SignIn";
+import { Welcome } from "./views/Welcome";
 import { startUpdateChecks } from "./lib/update";
 
 export default function App() {
@@ -49,7 +50,7 @@ export default function App() {
 }
 
 function Shell() {
-  const { settings, active, toasts, mine } = useApp();
+  const { settings, active, toasts, mine, guide } = useApp();
 
   // Browser preview only: ?view=mine|create|settings|game opens a tab.
   useEffect(() => {
@@ -142,6 +143,7 @@ function Shell() {
         </main>
       </div>
       {showStatus && <StatusBar />}
+      {(settings && !settings.onboarded) || guide ? <Welcome onClose={() => set({ guide: false })} /> : null}
       {toasts.length > 0 && <Toasts />}
     </div>
   );

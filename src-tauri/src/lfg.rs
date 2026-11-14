@@ -444,6 +444,19 @@ pub fn keep_active(x: &Xbl, scid: &str, name: &str, my_xuid: &str, connection: &
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn platform_words_are_ignored() {
+        use super::norm_name as n;
+        assert_eq!(n("Minecraft for Windows"), "minecraft");
+        assert_eq!(n("Roblox - Windows"), n("Roblox - Xbox"));
+        assert_eq!(n("Dead by Daylight Windows"), "dead by daylight");
+        assert_eq!(n("Grand Theft Auto V (Xbox One)"), n("Grand Theft Auto V Enhanced (PC)"));
+        assert_eq!(n("Apex Legends™"), "apex legends");
+        assert_eq!(n("Grounded 2 (Game Preview)"), "grounded 2");
+        assert_ne!(n("Minecraft Legends - Windows"), n("Minecraft"));
+        assert_eq!(n("Xbox"), "xbox");
+    }
+
     use super::*;
 
     #[test]
@@ -468,4 +481,94 @@ mod tests {
         let p = post_from_handle(&h);
         assert_eq!((p.needs, p.target, p.confirmed, p.host_xuid.as_str(), p.description.as_str()), (2, 3, 1, "111", "hi"));
     }
+}
+
+// ---------------------------------------------------------------- Xbox console versions
+//
+// Xbox keeps a separate LFG pool per title. Console players post under the Xbox title, so the
+// "for Windows" or Steam/Epic listing of the same game has few or no posts. We swap those for the
+// Xbox version.
+
+/// True for titles that run on an Xbox console.
+pub fn is_console(t: &Title) -> bool {
+    t.devices.iter().any(|d| d.starts_with("Xbox"))
+}
+
+/// A game's name without platform words, for matching the PC and Xbox listings of one game.
+pub fn norm_name(name: &str) -> String {
+    let clean: String = name.to_lowercase().chars().map(|c| if c.is_alphanumeric() { c } else { ' ' }).collect();
+    let mut w: Vec<&str> = clean.split_whitespace().collect();
+    const TAILS: [&[&str]; 15] = [
+        &["for", "windows", "10"],
+        &["for", "windows"],
+        &["windows", "10"],
+        &["windows", "edition"],
+        &["windows"],
+        &["pc", "edition"],
+        &["pc"],
+        &["xbox", "series", "x", "s"],
+        &["xbox", "one", "edition"],
+        &["xbox", "one"],
+        &["xbox"],
+        &["game", "preview"],
+        &["enhanced"],
+        &["legacy"],
+        &["for"],
+    ];
+    loop {
+        let before = w.len();
+        for t in TAILS {
+            if w.len() > t.len() && w.ends_with(t) {
+                w.truncate(w.len() - t.len());
+            }
+        }
+        if w.len() == before {
+            break;
+        }
+    }
+    w.join(" ")
+}
+
+/// Look up the Xbox console version of a PC game in the Store. None when there isn't one.
+pub fn find_console_version(x: &Xbl, name: &str) -> Result<Option<Title>, String> {
+    let key = norm_name(name);
+    if key.len() < 2 {
+        return Ok(None);
+    }
+    Ok(search_games(x, &key)?.into_iter().find(|t| is_console(t) && norm_name(&t.name) == key))
+}
+
+/// Swap PC listings for their Xbox versions. `map` holds known PC title id -> Xbox title id
+/// ("" = no Xbox version). Returns the list and the PC titles with no Xbox version found (yet).
+pub fn consoleize(list: Vec<Title>, map: &std::collections::HashMap<String, String>, known: &[Title]) -> (Vec<Title>, Vec<Title>) {
+    let mut out: Vec<Title> = list.iter().filter(|t| is_console(t)).cloned().collect();
+    let mut todo = vec![];
+    for t in list.iter().filter(|t| !is_console(t)) {
+        let key = norm_name(&t.name);
+        let target = out
+            .iter()
+            .position(|c| norm_name(&c.name) == key)
+            .map(|i| out[i].clone())
+            .or_else(|| map.get(&t.title_id).and_then(|id| known.iter().find(|k| !id.is_empty() && &k.title_id == id).cloned()));
+        match target {
+            Some(mut c) => {
+                // keep the PC game's play date so it stays in the same spot in "Your games"
+                if c.last_played.is_none() || t.last_played > c.last_played {
+                    c.last_played = t.last_played.clone().or(c.last_played);
+                }
+                match out.iter_mut().find(|o| o.title_id == c.title_id) {
+                    Some(o) => o.last_played = c.last_played.clone().max(o.last_played.clone()),
+                    None => out.push(c),
+                }
+            }
+            None => todo.push(t.clone()),
+        }
+    }
+    out.sort_by(|a, b| b.last_played.cmp(&a.last_played));
+    (out, todo)
+}
+
+/// PC games that use Xbox Live (not Steam/Epic games the Xbox app just tracks, which are "Win32").
+pub fn is_xbl_pc(t: &Title) -> bool {
+    t.devices.iter().any(|d| d == "PC")
 }

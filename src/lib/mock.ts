@@ -49,7 +49,7 @@ function detailFor(p: Post): Detail {
   return { post: p, members: [host, ...others], myRole: p.handleId === "mine-h" ? "host" : null };
 }
 
-let settings: Settings = { showSidePanel: true, showStatusBar: true, language: "en", pinned: ["267695549"], extraTitles: [], sound: true };
+let settings: Settings = { showSidePanel: true, showStatusBar: true, language: "en", pinned: ["267695549"], extraTitles: [], sound: true, consoleOnly: true, onboarded: !new URLSearchParams(location.search).has("welcome") };
 
 const wait = (ms = 250) => new Promise((r) => setTimeout(r, ms));
 
@@ -74,6 +74,8 @@ export async function mockCall<T>(cmd: string, args: Record<string, unknown> = {
     case "settings_set":
       settings = args.settings as Settings;
       return r(settings);
+    case "links_get":
+      return r({ discord: "", youtube: "https://www.youtube.com/@squadr_official", tiktok: "https://www.tiktok.com/@squadr_offical", github: "https://github.com/zinn-games/squadr" });
     case "games_list":
       return r(games);
     case "games_search":

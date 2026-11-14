@@ -6,7 +6,9 @@ export type AuthStatus = { signedIn: boolean; xuid: string; gamertag: string };
 export type DeviceCode = { userCode: string; verificationUri: string; expiresIn: number };
 export type Settings = {
   showSidePanel: boolean; showStatusBar: boolean; language: string; pinned: string[]; extraTitles: string[]; sound: boolean;
+  consoleOnly: boolean; onboarded: boolean;
 };
+export type Links = { discord: string; youtube: string; tiktok: string; github: string };
 export type Title = { titleId: string; name: string; scid: string; image: string; lastPlayed: string | null; devices: string[] };
 export type Post = {
   handleId: string; scid: string; sessionName: string; titleId: string; titleName: string; hostXuid: string; description: string; locale: string;
@@ -44,7 +46,8 @@ export const api = {
   rtaStatus: () => call<boolean>("rta_status"),
   settings: () => call<Settings>("settings_get"),
   saveSettings: (settings: Settings) => call<Settings>("settings_set", { settings }),
-  games: () => call<Title[]>("games_list"),
+  games: (resolve = false) => call<Title[]>("games_list", { resolve }),
+  links: () => call<Links>("links_get"),
   searchGames: (query: string) => call<Title[]>("games_search", { query }),
   query: (scid: string, filters: Filters) => call<{ posts: Post[]; people: Person[] }>("lfg_query", { scid, filters }),
   count: (scid: string, filters: Filters) => call<number>("lfg_count", { scid, filters }),

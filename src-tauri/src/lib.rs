@@ -223,6 +223,31 @@ fn rta_status(s: St) -> bool {
     s.rta.connection().is_some()
 }
 
+/// Community links (Discord, YouTube, TikTok). Read from links.json in the GitHub repo so they can
+/// change without a new release; the built-in copy is used when that can't be reached.
+#[tauri::command]
+async fn links_get() -> Result<serde_json::Value, String> {
+    let fallback = serde_json::json!({
+        "discord": "",
+        "youtube": "https://www.youtube.com/@squadr_official",
+        "tiktok": "https://www.tiktok.com/@squadr_offical",
+        "github": "https://github.com/zinn-games/squadr"
+    });
+    blocking(move || {
+        let agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(6)).build();
+        let mut out = fallback.clone();
+        if let Ok(v) = agent.get("https://raw.githubusercontent.com/zinn-games/squadr/main/links.json").call().and_then(|r| r.into_json::<serde_json::Value>().map_err(|e| e.into())) {
+            for k in ["discord", "youtube", "tiktok", "github"] {
+                if let Some(u) = v[k].as_str().filter(|u| u.is_empty() || u.starts_with("https://")) {
+                    out[k] = u.into();
+                }
+            }
+        }
+        Ok(out)
+    })
+    .await
+}
+
 // ---------------------------------------------------------------- settings
 
 #[tauri::command]
@@ -239,17 +264,97 @@ fn settings_set(s: St, settings: Settings) -> Result<Settings, String> {
 
 // ---------------------------------------------------------------- games
 
+const CONSOLE_MAP: &str = "console_map.json";
+const PC_COUNTS: &str = "pc_counts.json";
+/// A PC-only game (no Xbox version) is listed only with at least this many open LFG posts.
+const PC_MIN_POSTS: u32 = 15;
+
+/// Open-post counts for PC-only games, cached in pc_counts.json as id -> (count, when).
+/// Counts older than `max_age` ms are fetched again, 4 at a time.
+fn pc_counts(app: &App, titles: &[Title], max_age: Option<u64>) -> HashMap<String, u32> {
+    let mut cache: HashMap<String, (u32, u64)> = load(&app.dir, PC_COUNTS);
+    if let Some(age) = max_age {
+        let now = now_ms();
+        let stale: Vec<&Title> = titles.iter().filter(|t| cache.get(&t.title_id).map_or(true, |c| now.saturating_sub(c.1) > age)).take(24).collect();
+        if !stale.is_empty() {
+            let got: Vec<(String, u32)> = std::thread::scope(|sc| {
+                stale
+                    .chunks(stale.len().div_ceil(4))
+                    .map(|chunk| {
+                        let xbl = app.xbl.clone();
+                        sc.spawn(move || chunk.iter().filter_map(|t| lfg::count(&xbl, &t.scid, &Default::default()).ok().map(|n| (t.title_id.clone(), n))).collect::<Vec<_>>())
+                    })
+                    .collect::<Vec<_>>()
+                    .into_iter()
+                    .flat_map(|h| h.join().unwrap_or_default())
+                    .collect()
+            });
+            for (id, n) in got {
+                cache.insert(id, (n, now));
+            }
+            let _ = save(&app.dir, PC_COUNTS, &cache);
+        }
+    }
+    cache.into_iter().map(|(k, v)| (k, v.0)).collect()
+}
+
+/// Your games. With "Xbox versions only" on, PC listings are swapped for their Xbox console
+/// versions, because console players post LFG under the Xbox title. A PC game with no Xbox version
+/// stays only if it has PC_MIN_POSTS open posts. `resolve` also does the slow part (Store lookups
+/// for PC games we haven't matched before, fresh PC post counts), so the app calls it second.
 #[tauri::command]
-async fn games_list(s: St<'_>) -> Result<Vec<Title>, String> {
+async fn games_list(s: St<'_>, resolve: Option<bool>) -> Result<Vec<Title>, String> {
     let app = s.inner().clone();
     blocking(move || {
         let me = app.me()?;
+        let resolve = resolve.unwrap_or(false);
         let mut list = lfg::title_history(&app.xbl, &me)?;
-        let extra: Vec<String> = app.settings.lock().unwrap().extra_titles.iter().filter(|id| !list.iter().any(|t| &t.title_id == *id)).cloned().collect();
+        let (extra_ids, console_only) = {
+            let st = app.settings.lock().unwrap();
+            (st.extra_titles.clone(), st.console_only)
+        };
+        let extra: Vec<String> = extra_ids.into_iter().filter(|id| !list.iter().any(|t| &t.title_id == id)).collect();
         if let Ok(more) = lfg::titles_by_id(&app.xbl, &extra) {
             list.extend(more);
         }
-        Ok(list)
+        if !console_only {
+            return Ok(list);
+        }
+        let mut map: HashMap<String, String> = load(&app.dir, CONSOLE_MAP);
+        let fetch = |map: &HashMap<String, String>, list: &[Title]| {
+            let ids: Vec<String> = map.values().filter(|v| !v.is_empty() && !list.iter().any(|t| &t.title_id == *v)).cloned().collect::<std::collections::HashSet<_>>().into_iter().collect();
+            lfg::titles_by_id(&app.xbl, &ids).unwrap_or_default()
+        };
+        let (_, unmatched) = lfg::consoleize(list.clone(), &map, &fetch(&map, &list));
+        let todo: Vec<Title> = unmatched.into_iter().filter(|t| !map.contains_key(&t.title_id)).take(24).collect();
+        if resolve && !todo.is_empty() {
+            // Look up the Xbox version of up to 24 unmatched PC games, 6 at once.
+            let found: Vec<(String, Result<Option<Title>, String>)> = std::thread::scope(|sc| {
+                todo.chunks(4)
+                    .map(|chunk| {
+                        let xbl = app.xbl.clone();
+                        sc.spawn(move || chunk.iter().map(|t| (t.title_id.clone(), lfg::find_console_version(&xbl, &t.name))).collect::<Vec<_>>())
+                    })
+                    .collect::<Vec<_>>()
+                    .into_iter()
+                    .flat_map(|h| h.join().unwrap_or_default())
+                    .collect()
+            });
+            // remember answers (including "no Xbox version"); lookups that failed are retried next time
+            for (pc, res) in found {
+                if let Ok(xbox) = res {
+                    map.insert(pc, xbox.map(|t| t.title_id).unwrap_or_default());
+                }
+            }
+            let _ = save(&app.dir, CONSOLE_MAP, &map);
+        }
+        let (mut out, unmatched) = lfg::consoleize(list.clone(), &map, &fetch(&map, &list));
+        // PC-only games with enough posts of their own stay in the list.
+        let pc: Vec<Title> = unmatched.into_iter().filter(lfg::is_xbl_pc).collect();
+        let counts = pc_counts(&app, &pc, resolve.then_some(6 * 3600_000));
+        out.extend(pc.into_iter().filter(|t| counts.get(&t.title_id).is_some_and(|n| *n >= PC_MIN_POSTS)));
+        out.sort_by(|a, b| b.last_played.cmp(&a.last_played));
+        Ok(out)
     })
     .await
 }
@@ -257,7 +362,18 @@ async fn games_list(s: St<'_>) -> Result<Vec<Title>, String> {
 #[tauri::command]
 async fn games_search(s: St<'_>, query: String) -> Result<Vec<Title>, String> {
     let app = s.inner().clone();
-    blocking(move || lfg::search_games(&app.xbl, query.trim())).await
+    let console_only = app.settings.lock().unwrap().console_only;
+    blocking(move || {
+        let mut res = lfg::search_games(&app.xbl, query.trim())?;
+        if console_only {
+            // PC-only results stay when they have enough posts of their own
+            let pc: Vec<Title> = res.iter().filter(|t| !lfg::is_console(t)).cloned().collect();
+            let counts = pc_counts(&app, &pc, Some(3600_000));
+            res.retain(|t| lfg::is_console(t) || counts.get(&t.title_id).is_some_and(|n| *n >= PC_MIN_POSTS));
+        }
+        Ok(res)
+    })
+    .await
 }
 
 // ---------------------------------------------------------------- browse
@@ -727,7 +843,8 @@ pub fn run() {
             party_invite,
             open_xbox,
             update_check,
-            update_install
+            update_install,
+            links_get
         ])
         .build(tauri::generate_context!())
         .expect("error while building Squadr");
