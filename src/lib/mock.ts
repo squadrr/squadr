@@ -75,7 +75,7 @@ export async function mockCall<T>(cmd: string, args: Record<string, unknown> = {
       settings = args.settings as Settings;
       return r(settings);
     case "links_get":
-      return r({ discord: "", youtube: "https://www.youtube.com/@squadr_official", tiktok: "https://www.tiktok.com/@squadr_offical", github: "https://github.com/zinn-games/squadr" });
+      return r({ discord: "", youtube: "https://www.youtube.com/@squadr_official", tiktok: "https://www.tiktok.com/@squadr_offical", github: "https://github.com/squadrr/squadr" });
     case "games_list":
       return r(games);
     case "games_search":

@@ -9,7 +9,7 @@ const FALLBACK_LINKS: Links = {
   discord: "",
   youtube: "https://www.youtube.com/@squadr_official",
   tiktok: "https://www.tiktok.com/@squadr_offical",
-  github: "https://github.com/zinn-games/squadr",
+  github: "https://github.com/squadrr/squadr",
 };
 let linksCache: Links | null = null;
 export function useLinks() {

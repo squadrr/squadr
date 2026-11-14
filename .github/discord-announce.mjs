@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 
 const hook = process.env.DISCORD_WEBHOOK;
 const tag = process.env.TAG ?? "";
-const repo = process.env.REPO ?? "zinn-games/squadr";
+const repo = process.env.REPO ?? "squadrr/squadr";
 if (!hook) {
   console.log("DISCORD_WEBHOOK not set, skipping the Discord post.");
   process.exit(0);
