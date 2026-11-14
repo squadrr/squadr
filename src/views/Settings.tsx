@@ -1,0 +1,129 @@
+import { Download, ExternalLink, LoaderCircle, LogOut, RefreshCw } from "lucide-react";
+import { Avatar, Switch } from "../components/common";
+import { saveSettings, signOut } from "../lib/actions";
+import { api } from "../lib/api";
+import { LANGUAGES, xboxProfileUrl } from "../lib/format";
+import { useApp } from "../lib/store";
+import { checkForUpdates, installUpdate, useUpdate } from "../lib/update";
+
+export function SettingsView() {
+  const { settings, auth, people, rta } = useApp();
+  const me = auth ? people[auth.xuid] : null;
+  const up = useUpdate();
+  if (!settings) return null;
+  return (
+    <div className="view" style={{ gridTemplateRows: "1fr" }}>
+      <div className="scroll">
+        <div className="content narrow">
+          <div className="page-head">
+            <div>
+              <h1>Settings</h1>
+            </div>
+          </div>
+
+          <div className="group-title">Account</div>
+          <div className="form-card">
+            <div className="form-row">
+              <Avatar person={me} gamertag={auth?.gamertag} size={40} />
+              <div className="lbl">
+                <b>{me?.gamertag ?? auth?.gamertag}</b>
+                <span>Signed in with Xbox · {rta ? "connected" : "reconnecting"}</span>
+              </div>
+              <button className="btn-ghost" onClick={() => api.openUrl(xboxProfileUrl(auth?.gamertag ?? ""))}>
+                <ExternalLink size={14} /> Profile
+              </button>
+              <button className="btn-ghost btn-danger" onClick={signOut}>
+                <LogOut size={14} /> Sign out
+              </button>
+            </div>
+          </div>
+
+          <div className="group-title">Looking for Group</div>
+          <div className="form-card">
+            <div className="form-row">
+              <div className="lbl">
+                <b>Language</b>
+                <span>Used for new posts and as the default filter when you open a game.</span>
+              </div>
+              <select className="field" value={settings.language} onChange={(e) => saveSettings({ language: e.target.value })}>
+                {LANGUAGES.map((l) => (
+                  <option key={l.code} value={l.code}>
+                    {l.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="form-row">
+              <div className="lbl">
+                <b>Sound</b>
+                <span>Play a chime when someone asks to join your post or a host picks you.</span>
+              </div>
+              <Switch on={settings.sound} onClick={() => saveSettings({ sound: !settings.sound })} />
+            </div>
+          </div>
+
+          <div className="group-title">Interface</div>
+          <div className="form-card">
+            <div className="form-row">
+              <div className="lbl">
+                <b>Games panel</b>
+                <span>Your games and store search on the left.</span>
+              </div>
+              <Switch on={settings.showSidePanel} onClick={() => saveSettings({ showSidePanel: !settings.showSidePanel })} />
+            </div>
+            <div className="form-row">
+              <div className="lbl">
+                <b>Status bar</b>
+                <span>Connection and what you're hosting, along the bottom.</span>
+              </div>
+              <Switch on={settings.showStatusBar} onClick={() => saveSettings({ showStatusBar: !settings.showStatusBar })} />
+            </div>
+          </div>
+
+          <div className="group-title">Updates</div>
+          <div className="form-card">
+            <div className="form-row">
+              <div className="lbl">
+                <b>{up.available ? `Squadr ${up.available.version} is ready` : `Squadr ${up.current}`}</b>
+                <span>
+                  {up.installing
+                    ? `Downloading${up.progress != null ? ` ${Math.round(up.progress * 100)}%` : "…"} Squadr restarts by itself when it's done.`
+                    : up.available
+                      ? "Installing restarts Squadr. Your LFG post comes down and your join requests are withdrawn first."
+                      : up.error
+                        ? `Couldn't check: ${up.error}`
+                        : up.checkedAt
+                          ? "You're on the latest version."
+                          : "Squadr checks for updates when it starts and every few hours."}
+                </span>
+              </div>
+              {up.available ? (
+                <button className="btn-white" disabled={up.installing} onClick={installUpdate}>
+                  {up.installing ? <LoaderCircle size={14} className="spin" /> : <Download size={14} />} Install and restart
+                </button>
+              ) : (
+                <button className="btn-ghost" disabled={up.checking} onClick={() => checkForUpdates(true)}>
+                  {up.checking ? <LoaderCircle size={14} className="spin" /> : <RefreshCw size={14} />} Check for updates
+                </button>
+              )}
+            </div>
+            {up.available?.notes && !up.installing && (
+              <div className="form-row col">
+                <div className="update-notes">{up.available.notes}</div>
+              </div>
+            )}
+          </div>
+
+          <div className="group-title">How Squadr works</div>
+          <div className="info-box" style={{ marginTop: 0 }}>
+            <p>Squadr talks straight to Xbox Live's own Looking for Group service, so posts here are the same ones you see on console and in the Xbox app, and anything you post shows up there too.</p>
+            <p>You sign in the same way the Xbox mobile app does. Your sign-in is stored encrypted on this PC and nothing is sent anywhere else.</p>
+            <p>Xbox needs you online to keep you in a group. Squadr keeps a live connection while it's open; when you close it, your post is taken down and your requests are withdrawn.</p>
+            <p className="warn-line">Squadr is an independent app. It isn't made by or affiliated with Microsoft or Xbox. Follow the Xbox Community Standards when you post.</p>
+          </div>
+          <div className="muted" style={{ marginTop: 18, fontSize: 12 }}>Squadr {up.current}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
