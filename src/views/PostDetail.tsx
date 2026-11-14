@@ -143,7 +143,7 @@ export function PostDetail({ handleId, fallback, known, onClose }: { handleId: s
           </>
         ) : (
           <>
-            <textarea className="field msg" placeholder={`Say something to ${hostName} (optional)`} maxLength={256} value={msg} onChange={(e) => setMsg(e.target.value)} rows={2} />
+            <textarea className="field msg" placeholder={`Add a note for ${hostName} (optional, sent as an Xbox message)`} maxLength={256} value={msg} onChange={(e) => setMsg(e.target.value)} rows={2} />
             <button
               className="btn-white"
               disabled={busy[`apply:${post.handleId}`] || full}

@@ -402,9 +402,10 @@ pub fn create(x: &Xbl, my_xuid: &str, connection: &str, p: &NewPost) -> Result<P
     }
 }
 
-/// Ask to join someone's post (shows up for them as an applicant with your message).
-pub fn apply(x: &Xbl, handle_id: &str, my_xuid: &str, connection: &str, message: &str) -> Result<(), XblError> {
-    x.put(&format!("{MPSD}/handles/{handle_id}/session"), MPSD_CONTRACT, &json!({ "members": { "me": member_body(my_xuid, connection, Some(message), true) } }))?;
+/// Ask to join someone's post (shows up for them as an applicant).
+/// MPSD rejects text on a member (400 Bad request), so any note is sent separately as an Xbox message.
+pub fn apply(x: &Xbl, handle_id: &str, my_xuid: &str, connection: &str) -> Result<(), XblError> {
+    x.put(&format!("{MPSD}/handles/{handle_id}/session"), MPSD_CONTRACT, &json!({ "members": { "me": member_body(my_xuid, connection, None, true) } }))?;
     Ok(())
 }
 

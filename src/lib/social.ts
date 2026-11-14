@@ -1,4 +1,5 @@
 // Messages, friends and party actions.
+import { isSpam } from "./spam";
 import { chime, mergePeople, openTab, toast } from "./actions";
 import { errText, social, type Conversation, type Message, type ThreadRef } from "./api";
 import { get, set, threadKey, type ThreadState } from "./store";
@@ -17,9 +18,14 @@ let inboxSeq = 0;
 export async function loadInbox(notify = true) {
   const seq = ++inboxSeq;
   try {
-    const { conversations, requests, people } = await social.inbox();
+    const res = await social.inbox();
     if (seq !== inboxSeq) return;
+    const { people } = res;
     mergePeople(people);
+    // Hide follower/gamertag-selling spam from strangers (message requests) and in any chat preview.
+    const gt = (x: string) => people.find((p) => p.xuid === x)?.gamertag ?? get().people[x]?.gamertag;
+    const requests = res.requests.filter((c) => !isSpam(c.lastText, c.title, gt(c.otherXuid)));
+    const conversations = res.conversations.filter((c) => !isSpam(c.lastText, c.title, gt(c.otherXuid)));
     const s = get();
     const me = s.auth?.xuid;
     const openKey = s.chat && s.active === "messages" ? threadKey(s.chat) : null;

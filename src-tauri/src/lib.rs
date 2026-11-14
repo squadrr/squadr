@@ -231,12 +231,12 @@ async fn links_get() -> Result<serde_json::Value, String> {
         "discord": "",
         "youtube": "https://www.youtube.com/@squadr_official",
         "tiktok": "https://www.tiktok.com/@squadr_offical",
-        "github": "https://github.com/zinn-games/squadr"
+        "github": "https://github.com/squadrr/squadr"
     });
     blocking(move || {
         let agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(6)).build();
         let mut out = fallback.clone();
-        if let Ok(v) = agent.get("https://raw.githubusercontent.com/zinn-games/squadr/main/links.json").call().and_then(|r| r.into_json::<serde_json::Value>().map_err(|e| e.into())) {
+        if let Ok(v) = agent.get("https://raw.githubusercontent.com/squadrr/squadr/main/links.json").call().and_then(|r| r.into_json::<serde_json::Value>().map_err(|e| e.into())) {
             for k in ["discord", "youtube", "tiktok", "github"] {
                 if let Some(u) = v[k].as_str().filter(|u| u.is_empty() || u.starts_with("https://")) {
                     out[k] = u.into();
@@ -529,7 +529,8 @@ async fn lfg_apply(s: St<'_>, post: PostRef, message: String) -> Result<(), Stri
     blocking(move || {
         let me = app.me()?;
         let conn = app.connection()?;
-        lfg::apply(&app.xbl, &post.handle_id, &me, &conn, &message)?;
+        let _ = message; // sent by the frontend as an Xbox message
+        lfg::apply(&app.xbl, &post.handle_id, &me, &conn)?;
         app.track(Tracked {
             scid: post.scid,
             session_name: post.session_name,

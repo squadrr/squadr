@@ -1,4 +1,5 @@
-import { api, errText, type AuthStatus, type MineItem, type Person, type Post, type Settings, type Title } from "./api";
+import { api, errText, social, type AuthStatus, type MineItem, type Person, type Post, type Settings, type Title } from "./api";
+import { isSpam } from "./spam";
 import { defaultFilters, gameTab, get, reset, set, tabGame, type BrowseState, type TabId } from "./store";
 
 let toastId = 0;
@@ -212,8 +213,11 @@ export async function refreshBrowse(titleId: string) {
   patchBrowse(titleId, { loading: true, error: null });
   const filters = get().browse[titleId].filters;
   try {
-    const { posts, people } = await api.query(t.scid, filters);
+    const res = await api.query(t.scid, filters);
+    const { people } = res;
     mergePeople(people);
+    // Drop follower/gamertag-selling spam posts (written in look-alike letters to dodge filters).
+    const posts = res.posts.filter((p) => !isSpam(p.description, p.tags.join(" "), people.find((x) => x.xuid === p.hostXuid)?.gamertag));
     patchBrowse(titleId, { posts, loading: false, at: Date.now() });
     if (!filters.tags.length && filters.minNeeds <= 1) set((s) => ({ counts: { ...s.counts, [titleId]: Math.max(posts.length, s.counts[titleId] ?? 0) } }));
   } catch (e) {
@@ -255,14 +259,25 @@ export async function applyTo(p: Post, message: string) {
   const ok = await guarded(
     `apply:${p.handleId}`,
     async () => {
-      await api.apply(p, message);
+      await api.apply(p, "");
       return true;
     },
     "Couldn't send your request",
   );
   if (!ok) return false;
   set((s) => ({ applied: { ...s.applied, [p.handleId]: true } }));
-  toast("good", "Request sent", `${hostName(p)} will see it. You'll get a heads-up here if they pick you.`);
+  // Xbox join requests can't carry text, so the note goes to the host as an Xbox message.
+  const note = message.trim();
+  let noteFailed = "";
+  if (note && p.hostXuid) {
+    try {
+      await social.send({ kind: "dm", xuid: p.hostXuid, groupId: "", channelId: "" }, `Asked to join your ${p.titleName || "LFG"} post: ${note}`);
+    } catch (e) {
+      noteFailed = errText(e);
+    }
+  }
+  if (noteFailed) toast("error", "Request sent, but your note didn't go through", noteFailed);
+  else toast("good", "Request sent", `${hostName(p)} will see it${note ? ", and your note was sent as an Xbox message" : ""}. You'll get a heads-up here if they pick you.`);
   loadDetail(p.handleId);
   refreshMine(false);
   return true;

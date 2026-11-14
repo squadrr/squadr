@@ -134,3 +134,32 @@ fn probe_console_games() {
         println!("{} {:?} {}", t.title_id, t.devices, t.name);
     }
 }
+
+/// Read-only: what do real applicants' member entries look like (where does the join note live)?
+#[test]
+#[ignore]
+fn probe_applicant_shape() {
+    use crate::lfg;
+    let auth = Arc::new(Auth::new(&app_dir()));
+    let x = Xbl::new(auth.clone());
+    let me = auth.xsts().expect("signed in").xuid;
+    let titles: Vec<_> = lfg::title_history(&x, &me).unwrap().into_iter().filter(lfg::is_console).take(6).collect();
+    let mut seen = 0;
+    for t in titles {
+        let posts = match lfg::query(&x, &t.scid, &Default::default()) { Ok(p) => p, Err(_) => continue };
+        for p in posts.iter().filter(|p| p.members_count > 1).take(12) {
+            let Ok(doc) = lfg::session_doc(&x, &p.scid, &p.session_name) else { continue };
+            for (_, m) in doc["members"].as_object().cloned().unwrap_or_default() {
+                let role = m["roles"]["lfg"].as_str().unwrap_or("-").to_string();
+                if role == "confirmed" { continue; }
+                let mut props = m["properties"].clone();
+                // keep structure, mask values
+                fn mask(v: &mut Value) { match v { Value::String(s) => *s = format!("<{} chars>", s.chars().count()), Value::Object(o) => o.values_mut().for_each(mask), Value::Array(a) => a.iter_mut().for_each(mask), _ => {} } }
+                mask(&mut props);
+                println!("{} role={role} props={}", t.name, props);
+                seen += 1;
+            }
+            if seen > 25 { return; }
+        }
+    }
+}
