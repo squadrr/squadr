@@ -58,7 +58,8 @@ export function TitleBar({ minimal }: { minimal?: boolean }) {
       { label: "My LFG", kbd: "Ctrl+M", run: () => openTab("mine") },
       { label: "Settings", kbd: "Ctrl+,", run: () => openTab("settings") },
       "sep",
-      { label: settings?.showSidePanel ? "Hide games panel" : "Show games panel", run: () => saveSettings({ showSidePanel: !settings?.showSidePanel }) },
+      { label: settings?.layout === "pulse" ? "Classic layout" : "Pulse layout", run: () => saveSettings({ layout: settings?.layout === "pulse" ? "classic" : "pulse" }) },
+      ...(settings?.layout === "pulse" ? [] : [{ label: settings?.showSidePanel ? "Hide games panel" : "Show games panel", run: () => saveSettings({ showSidePanel: !settings?.showSidePanel }) }]),
       { label: settings?.showStatusBar ? "Hide status bar" : "Show status bar", run: () => saveSettings({ showStatusBar: !settings?.showStatusBar }) },
     ],
     Help: [
@@ -110,9 +111,11 @@ export function TitleBar({ minimal }: { minimal?: boolean }) {
           <button className="icon-btn" title="New post (Ctrl+N)" onClick={() => createFor(tabGame(active))}>
             <CirclePlus size={16} />
           </button>
-          <button className={`icon-btn ${settings.showSidePanel ? "on" : ""}`} title="Toggle games panel" onClick={() => saveSettings({ showSidePanel: !settings.showSidePanel })}>
-            <PanelLeft size={16} />
-          </button>
+          {settings.layout !== "pulse" && (
+            <button className={`icon-btn ${settings.showSidePanel ? "on" : ""}`} title="Toggle games panel" onClick={() => saveSettings({ showSidePanel: !settings.showSidePanel })}>
+              <PanelLeft size={16} />
+            </button>
+          )}
           <button className={`icon-btn ${settings.showStatusBar ? "on" : ""}`} title="Toggle status bar" onClick={() => saveSettings({ showStatusBar: !settings.showStatusBar })}>
             <PanelBottom size={16} />
           </button>

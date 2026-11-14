@@ -73,10 +73,12 @@ pub struct Settings {
     pub console_only: bool,
     /// The start guide has been shown.
     pub onboarded: bool,
+    /// "classic" (tabs + games panel) or "pulse" (game rail, feed, side pane).
+    pub layout: String,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { show_side_panel: true, show_status_bar: true, language: "en".into(), pinned: vec![], extra_titles: vec![], sound: true, console_only: true, onboarded: false }
+        Settings { show_side_panel: true, show_status_bar: true, language: "en".into(), pinned: vec![], extra_titles: vec![], sound: true, console_only: true, onboarded: false, layout: "classic".into() }
     }
 }

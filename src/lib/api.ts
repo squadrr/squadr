@@ -6,7 +6,7 @@ export type AuthStatus = { signedIn: boolean; xuid: string; gamertag: string };
 export type DeviceCode = { userCode: string; verificationUri: string; expiresIn: number };
 export type Settings = {
   showSidePanel: boolean; showStatusBar: boolean; language: string; pinned: string[]; extraTitles: string[]; sound: boolean;
-  consoleOnly: boolean; onboarded: boolean;
+  consoleOnly: boolean; onboarded: boolean; layout: "classic" | "pulse";
 };
 export type Links = { discord: string; youtube: string; tiktok: string; github: string };
 export type Title = { titleId: string; name: string; scid: string; image: string; lastPlayed: string | null; devices: string[] };

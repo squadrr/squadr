@@ -49,7 +49,7 @@ function detailFor(p: Post): Detail {
   return { post: p, members: [host, ...others], myRole: p.handleId === "mine-h" ? "host" : null };
 }
 
-let settings: Settings = { showSidePanel: true, showStatusBar: true, language: "en", pinned: ["267695549"], extraTitles: [], sound: true, consoleOnly: true, onboarded: !new URLSearchParams(location.search).has("welcome") };
+let settings: Settings = { showSidePanel: true, showStatusBar: true, language: "en", pinned: ["267695549"], extraTitles: [], sound: true, consoleOnly: true, layout: (new URLSearchParams(location.search).get("layout") === "pulse" ? "pulse" : "classic") as Settings["layout"], onboarded: !new URLSearchParams(location.search).has("welcome") };
 
 const wait = (ms = 250) => new Promise((r) => setTimeout(r, ms));
 

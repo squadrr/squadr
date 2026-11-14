@@ -1,7 +1,7 @@
-**What's new in 0.2.2**
+**What's new in 0.2.3**
 
-- **Xbox versions of your games.** Xbox keeps a separate LFG list for each version of a game, and console players post under the Xbox one. Squadr now swaps PC listings (like "Minecraft for Windows" or Steam games) for the Xbox version, so you see the full list of posts. PC-only games still show up when they have 15 or more open posts. You can turn this off in Settings.
-- **Start guide.** New players get a quick welcome, pick the games they play (pinned to the top), and can find Squadr on YouTube and TikTok. Open it again any time from Settings.
+- **New Pulse layout.** A game rail on the left, the feed in the middle and a side pane that's always open, with a violet glow. Pick it in **Settings > Interface > Layout** (or **View > Pulse layout**). Classic is still the default, and you can switch back any time.
+- Update notes in Squadr no longer show stray `**` marks.
 
 Download **Squadr_*_x64-setup.exe** below and run it. Windows may say "Windows protected your PC" because the installer isn't code-signed yet. Click **More info**, then **Run anyway**.
 

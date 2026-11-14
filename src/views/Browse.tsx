@@ -6,6 +6,7 @@ import type { Post } from "../lib/api";
 import { ago, LANGUAGES, tagLabel, when } from "../lib/format";
 import { defaultFilters, useApp } from "../lib/store";
 import { PostDetail } from "./PostDetail";
+import { Glance } from "../components/Pulse";
 
 /** One game's open LFG posts, newest/most relevant first, with a detail pane on the right. */
 export function Browse({ titleId }: { titleId: string }) {
@@ -29,6 +30,7 @@ export function Browse({ titleId }: { titleId: string }) {
   const activeTags = filters.tags.map((x) => x.toLowerCase());
   const selected = b?.selected ?? null;
   const selPost = posts?.find((p) => p.handleId === selected);
+  const pulse = settings?.layout === "pulse";
 
   return (
     <div className="view">
@@ -66,7 +68,7 @@ export function Browse({ titleId }: { titleId: string }) {
         </button>
       </div>
 
-      <div className={`split ${selected ? "with-detail" : ""}`}>
+      <div className={`split ${selected || pulse ? "with-detail" : ""}`}>
         <div className="scroll">
           <div className="feed">
             {(popular.length > 0 || activeTags.length > 0) && (
@@ -114,7 +116,7 @@ export function Browse({ titleId }: { titleId: string }) {
             {posts && posts.length >= 100 && <div className="empty-note" style={{ textAlign: "center" }}>Showing the top 100. Use tags or filters to narrow it down.</div>}
           </div>
         </div>
-        {selected && <PostDetail key={selected} handleId={selected} fallback={selPost} onClose={() => selectPost(titleId, null)} />}
+        {selected ? <PostDetail key={selected} handleId={selected} fallback={selPost} onClose={() => selectPost(titleId, null)} /> : pulse && <Glance titleId={titleId} />}
       </div>
     </div>
   );
@@ -125,6 +127,11 @@ function PostCard({ p, active, requested, host, onClick }: { p: Post; active: bo
   return (
     <button className={`post ${active ? "active" : ""}`} onClick={onClick}>
       <Avatar person={host} gamertag={name} size={40} />
+      <span className="post-ring" style={{ "--pct": p.target ? Math.min(1, p.confirmed / p.target) : 0 } as React.CSSProperties}>
+        <span>
+          {p.confirmed}/{p.target}
+        </span>
+      </span>
       <div className="post-main">
         <div className="post-top">
           <b>{name}</b>

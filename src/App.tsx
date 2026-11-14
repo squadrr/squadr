@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { ActivityBar, StatusBar, Tabs, Toasts } from "./components/Chrome";
 import { Logo } from "./components/common";
 import { SidePanel } from "./components/SidePanel";
+import { GamesFlyout, PulseRail } from "./components/Pulse";
 import { refreshCurrent, TitleBar } from "./components/TitleBar";
 import { closeTab, createFor, enterApp, findTitle, onTap, openGame, openTab, refreshMine, toast } from "./lib/actions";
 import { api, isTauri, on, type AuthStatus } from "./lib/api";
@@ -98,7 +99,7 @@ function Shell() {
         m: () => openTab("mine"),
         j: () => openTab("messages"),
         p: () => openTab("friends"),
-        f: () => document.getElementById("game-search")?.focus(),
+        f: () => (get().settings?.layout === "pulse" ? set({ pickGames: true }) : document.getElementById("game-search")?.focus()),
         ",": () => openTab("settings"),
         r: refreshCurrent,
         w: () => {
@@ -115,18 +116,20 @@ function Shell() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const showSide = settings?.showSidePanel ?? true;
+  const pulse = settings?.layout === "pulse";
+  const showSide = !pulse && (settings?.showSidePanel ?? true);
   const showStatus = settings?.showStatusBar ?? true;
   const game = tabGame(active);
 
   return (
-    <div className="app" style={{ gridTemplateRows: showStatus ? "36px 1fr auto" : "36px 1fr" }}>
+    <div className={`app ${pulse ? "pulse" : ""}`} style={{ gridTemplateRows: showStatus ? "36px 1fr auto" : "36px 1fr" }}>
       <TitleBar />
-      <div className="body" style={{ gridTemplateColumns: showSide ? "52px auto 1fr" : "52px 1fr" }}>
-        <ActivityBar />
+      <div className="body" style={{ gridTemplateColumns: pulse ? "84px 1fr" : showSide ? "52px auto 1fr" : "52px 1fr" }}>
+        {pulse ? <PulseRail /> : <ActivityBar />}
         {showSide && <SidePanel />}
+        {pulse && <GamesFlyout />}
         <main className="main">
-          <Tabs />
+          {!pulse && <Tabs />}
           {active === "home" && <Home />}
           {active === "mine" && <Mine />}
           {active === "create" && <Create />}
@@ -137,7 +140,7 @@ function Shell() {
           {!active && (
             <div className="empty">
               <Logo size={90} />
-              <div>Pick a game on the left to find a group.</div>
+              <div>{pulse ? "Pick a game on the rail, or press + to find one." : "Pick a game on the left to find a group."}</div>
             </div>
           )}
         </main>

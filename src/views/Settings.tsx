@@ -7,6 +7,11 @@ import { set, useApp } from "../lib/store";
 import { DiscordIcon, TikTokIcon, useLinks, YouTubeIcon } from "./Welcome";
 import { checkForUpdates, installUpdate, useUpdate } from "../lib/update";
 
+const LAYOUTS = [
+  { id: "classic", name: "Classic", blurb: "Tabs, a games panel and a status bar. Black and white." },
+  { id: "pulse", name: "Pulse", blurb: "A game rail, the feed and a side pane that's always open. Violet glow." },
+] as const;
+
 export function SettingsView() {
   const { settings, auth, people, rta } = useApp();
   const me = auth ? people[auth.xuid] : null;
@@ -73,13 +78,34 @@ export function SettingsView() {
 
           <div className="group-title">Interface</div>
           <div className="form-card">
-            <div className="form-row">
+            <div className="form-row col">
               <div className="lbl">
-                <b>Games panel</b>
-                <span>Your games and store search on the left.</span>
+                <b>Layout</b>
+                <span>How Squadr looks. You can switch back any time.</span>
               </div>
-              <Switch on={settings.showSidePanel} onClick={() => saveSettings({ showSidePanel: !settings.showSidePanel })} />
+              <div className="layout-pick">
+                {LAYOUTS.map((l) => (
+                  <button key={l.id} className={`layout-opt ${settings.layout === l.id ? "on" : ""}`} onClick={() => saveSettings({ layout: l.id })}>
+                    <span className={`layout-thumb ${l.id}`}>
+                      <i />
+                      <i />
+                      <i />
+                    </span>
+                    <b>{l.name}</b>
+                    <span>{l.blurb}</span>
+                  </button>
+                ))}
+              </div>
             </div>
+            {settings.layout !== "pulse" && (
+              <div className="form-row">
+                <div className="lbl">
+                  <b>Games panel</b>
+                  <span>Your games and store search on the left.</span>
+                </div>
+                <Switch on={settings.showSidePanel} onClick={() => saveSettings({ showSidePanel: !settings.showSidePanel })} />
+              </div>
+            )}
             <div className="form-row">
               <div className="lbl">
                 <b>Status bar</b>

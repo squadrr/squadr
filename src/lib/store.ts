@@ -16,6 +16,8 @@ export type State = {
   auth: AuthStatus | null;
   /** Start guide opened again from Settings. */
   guide: boolean;
+  /** Pulse layout: the games flyout next to the rail is open. */
+  pickGames: boolean;
   signIn: { code: DeviceCode | null; error: string | null; busy: boolean; startedAt: number };
   settings: Settings | null;
   tabs: TabId[];
@@ -55,6 +57,7 @@ export const defaultFilters = (language = ""): Filters => ({ language, tags: [],
 const initial: State = {
   auth: null,
   guide: false,
+  pickGames: false,
   signIn: { code: null, error: null, busy: false, startedAt: 0 },
   settings: null,
   tabs: ["home"],
