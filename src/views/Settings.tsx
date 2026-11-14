@@ -151,7 +151,7 @@ export function SettingsView() {
             </div>
             {up.available?.notes && !up.installing && (
               <div className="form-row col">
-                <div className="update-notes">{up.available.notes}</div>
+                <div className="update-notes">{up.available.notes.replace(/\*\*/g, "").replace(/\r/g, "")}</div>
               </div>
             )}
           </div>
