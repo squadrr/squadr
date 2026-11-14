@@ -49,3 +49,12 @@ jobs:
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true
+
+      # Announce the release in the Discord server (skipped when the DISCORD_WEBHOOK secret isn't set).
+      - name: Post to Discord
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: node .github/discord-announce.mjs
