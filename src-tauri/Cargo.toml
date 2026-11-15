@@ -1,6 +1,6 @@
 [package]
 name = "squadr"
-version = "0.2.4"
+version = "0.2.5"
 description = "Squadr - Xbox Looking for Group"
 edition = "2021"
 
