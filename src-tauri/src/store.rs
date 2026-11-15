@@ -75,10 +75,27 @@ pub struct Settings {
     pub onboarded: bool,
     /// "classic" (tabs + games panel) or "pulse" (game rail, feed, side pane).
     pub layout: String,
+    /// Liquid glass look: frosted, see-through panels.
+    pub glass: bool,
+    /// See-through window: "off", "acrylic" or "mica" (Windows backdrop effects).
+    pub backdrop: String,
+    /// Clipping: keep a replay buffer and save it with a hotkey.
+    pub clips_enabled: bool,
+    pub clip_seconds: u32,
+    pub clip_hotkey: String,
+    /// Folder for saved clips ("" = Videos\Squadr Clips).
+    pub clip_dir: String,
+    pub clip_fps: u32,
+    /// Output height (0 = native).
+    pub clip_height: u32,
+    pub clip_quality: String,
+    pub clip_audio: bool,
+    pub clip_monitor: u32,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { show_side_panel: true, show_status_bar: true, language: "en".into(), pinned: vec![], extra_titles: vec![], sound: true, console_only: true, onboarded: false, layout: "classic".into() }
+        Settings { show_side_panel: true, show_status_bar: true, language: "en".into(), pinned: vec![], extra_titles: vec![], sound: true, console_only: true, onboarded: false, layout: "classic".into(), glass: false, backdrop: "off".into(),
+            clips_enabled: false, clip_seconds: 30, clip_hotkey: "Alt+F10".into(), clip_dir: String::new(), clip_fps: 60, clip_height: 1080, clip_quality: "high".into(), clip_audio: true, clip_monitor: 0 }
     }
 }

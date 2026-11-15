@@ -1,0 +1,93 @@
+/* ---------------------------------------------------------------- Liquid glass
+   Frosted, translucent panels with a glossy top edge over a soft colour field.
+   Only the big chrome areas and pop-ups blur what's behind them (backdrop-filter is costly);
+   cards are just translucent with the same edge highlight. */
+.app.glass {
+  --glass: rgba(255, 255, 255, 0.055);
+  --glass-2: rgba(255, 255, 255, 0.085);
+  --glass-line: rgba(255, 255, 255, 0.13);
+  --glass-hi: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(255, 255, 255, 0.03);
+  --glass-blur: blur(26px) saturate(170%);
+  --sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.025) 45%, rgba(255, 255, 255, 0.04));
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --input: rgba(255, 255, 255, 0.06);
+  --card: rgba(255, 255, 255, 0.05);
+  --card-hover: rgba(255, 255, 255, 0.085);
+  background:
+    radial-gradient(900px 600px at 12% 8%, #2f8f6a66, transparent 60%),
+    radial-gradient(800px 600px at 92% 18%, #3a63d566, transparent 60%),
+    radial-gradient(900px 700px at 70% 105%, #8a4ad855, transparent 60%),
+    radial-gradient(700px 500px at 0% 100%, #1f7fa04d, transparent 60%),
+    #0b0c10;
+}
+.app.glass.pulse {
+  background:
+    radial-gradient(900px 600px at 15% 5%, #7b3fe066, transparent 60%),
+    radial-gradient(800px 600px at 95% 20%, #ff5fa84d, transparent 60%),
+    radial-gradient(900px 700px at 60% 110%, #3a63d555, transparent 60%),
+    #0d0a14;
+}
+
+/* chrome: blurred glass */
+.app.glass .titlebar { background: transparent; }
+.app.glass .activity, .app.glass .side, .app.glass .tabs, .app.glass .statusbar, .app.glass .pu-rail {
+  background: var(--glass); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+}
+.app.glass .main, .app.glass .view, .app.glass .glow, .app.glass .toolbar { background: transparent; }
+.app.glass .main { border-left-color: var(--glass-line); }
+.app.glass .tab.active { background: var(--glass-2); }
+.app.glass .tab:hover { background: rgba(255, 255, 255, 0.05); }
+
+/* side panes and pop-ups: blurred glass with a sheen */
+.app.glass .detail, .app.glass .conv-col, .app.glass .pu-glance, .app.glass .chat-split > :last-child {
+  background: var(--sheen), rgba(255, 255, 255, 0.04); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  border-left: 1px solid var(--glass-line);
+}
+.app.glass .menu-pop, .app.glass .toast, .app.glass .welcome-card, .app.glass .pu-flyout {
+  background: var(--sheen), rgba(28, 28, 36, 0.55); backdrop-filter: blur(30px) saturate(180%); -webkit-backdrop-filter: blur(30px) saturate(180%);
+  border: 1px solid var(--glass-line); box-shadow: var(--glass-hi), 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+
+/* cards: translucent with a glossy edge (no blur, so long lists stay smooth) */
+.app.glass .post, .app.glass .mine-card, .app.glass .form-card, .app.glass .stat-card, .app.glass .big-card, .app.glass .list,
+.app.glass .tile, .app.glass .banner, .app.glass .party-card, .app.glass .facts > div, .app.glass .info-box, .app.glass .empty-card,
+.app.glass .welcome-game, .app.glass .welcome-feats > div, .app.glass .layout-opt, .app.glass .pu-mini > div, .app.glass .pu-unread {
+  background: var(--sheen), var(--glass); border: 1px solid var(--glass-line); box-shadow: var(--glass-hi);
+}
+.app.glass .post { border-radius: 16px; }
+.app.glass .post:hover, .app.glass .mine-card:hover { background: var(--sheen), var(--glass-2); }
+.app.glass .post.active, .app.glass .mine-card.active { background: var(--sheen), rgba(255, 255, 255, 0.11); border-color: rgba(255, 255, 255, 0.28); }
+.app.glass.pulse .post { background: transparent; border-color: transparent; box-shadow: none; }
+.app.glass.pulse .post:hover { background: rgba(255, 255, 255, 0.05); }
+.app.glass.pulse .post.active { background: linear-gradient(90deg, #b46bff2e, #ff5fa814); border-color: #b46bff55; box-shadow: var(--glass-hi); }
+
+/* controls */
+.app.glass .btn-ghost, .app.glass .mini-btn, .app.glass .chip, .app.glass .search, .app.glass .field, .app.glass .seg, .app.glass .bubble {
+  background: rgba(255, 255, 255, 0.07); border-color: var(--glass-line); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.app.glass .btn-ghost:hover:not(:disabled), .app.glass .mini-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); }
+.app.glass .chip.on { background: var(--accent); color: var(--accent-text); }
+.app.glass .msg-row.mine .bubble { background: var(--accent); color: var(--accent-text); }
+.app.glass.pulse .msg-row.mine .bubble { background: var(--grad); color: #fff; }
+.app.glass .btn-white { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 6px 20px rgba(0, 0, 0, 0.25); }
+.app.glass .pfp, .app.glass .game-art { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12); }
+.app.glass .switch { background: rgba(255, 255, 255, 0.14); }
+
+/* ---------------------------------------------------------------- Transparent background
+   The window has a Windows Acrylic/Mica backdrop; the page lets it through with a dark tint. */
+html.see-through, html.see-through body, html.see-through #root { background: transparent !important; }
+.app.see-through { background: rgba(12, 12, 14, 0.5); }
+.app.see-through .titlebar, .app.see-through .activity, .app.see-through .side, .app.see-through .tabs, .app.see-through .statusbar { background: rgba(14, 14, 16, 0.45); }
+.app.see-through .main, .app.see-through .view, .app.see-through .glow, .app.see-through .toolbar { background: transparent; }
+.app.see-through .detail, .app.see-through .conv-col { background: rgba(16, 16, 18, 0.55); }
+.app.see-through .post, .app.see-through .form-card, .app.see-through .list, .app.see-through .mine-card { background: rgba(26, 26, 30, 0.6); }
+.app.see-through.pulse { background: radial-gradient(900px 520px at 60% -20%, #3a1f6a40, transparent 70%), rgba(13, 10, 20, 0.5); }
+.app.see-through.pulse .pu-rail { background: rgba(10, 8, 16, 0.45); }
+/* glass + see-through: let more of the desktop through, keep a faint colour field */
+.app.glass.see-through {
+  background: radial-gradient(900px 600px at 12% 8%, #2f8f6a33, transparent 60%), radial-gradient(800px 600px at 92% 18%, #3a63d533, transparent 60%), rgba(10, 10, 14, 0.3);
+}
+.app.glass.see-through.pulse { background: radial-gradient(900px 600px at 15% 5%, #7b3fe040, transparent 60%), radial-gradient(800px 600px at 95% 20%, #ff5fa830, transparent 60%), rgba(13, 10, 20, 0.32); }
+.app.glass.see-through .activity, .app.glass.see-through .side, .app.glass.see-through .tabs, .app.glass.see-through .statusbar { background: rgba(255, 255, 255, 0.04); }
+.app.glass.pulse .post-foot .chip.sm { background: none; border: 0; box-shadow: none; }

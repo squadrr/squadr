@@ -6,7 +6,8 @@ export type AuthStatus = { signedIn: boolean; xuid: string; gamertag: string };
 export type DeviceCode = { userCode: string; verificationUri: string; expiresIn: number };
 export type Settings = {
   showSidePanel: boolean; showStatusBar: boolean; language: string; pinned: string[]; extraTitles: string[]; sound: boolean;
-  consoleOnly: boolean; onboarded: boolean; layout: "classic" | "pulse";
+  consoleOnly: boolean; onboarded: boolean; layout: "classic" | "pulse"; glass: boolean; backdrop: "off" | "acrylic" | "mica";
+  clipsEnabled: boolean; clipSeconds: number; clipHotkey: string; clipDir: string; clipFps: number; clipHeight: number; clipQuality: "high" | "medium"; clipAudio: boolean; clipMonitor: number;
 };
 export type Links = { discord: string; youtube: string; tiktok: string; github: string };
 export type Title = { titleId: string; name: string; scid: string; image: string; lastPlayed: string | null; devices: string[] };
@@ -62,7 +63,7 @@ export const api = {
   decline: (p: Post, index: number) => call<void>("lfg_decline", { scid: p.scid, sessionName: p.sessionName, index }),
 };
 
-export function on<T>(event: "auth" | "rta" | "tap" | "update-progress", cb: (payload: T) => void): () => void {
+export function on<T>(event: "auth" | "rta" | "tap" | "update-progress" | "clip" | "clips-status" | "clips-install", cb: (payload: T) => void): () => void {
   if (!isTauri) return mockListen(event, cb as (p: unknown) => void);
   const un = listen<T>(event, (e) => cb(e.payload));
   return () => void un.then((f) => f());

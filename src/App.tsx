@@ -13,6 +13,8 @@ import { Home } from "./views/Home";
 import { Mine } from "./views/Mine";
 import { Messages } from "./views/Messages";
 import { Friends } from "./views/Friends";
+import { Clips } from "./views/Clips";
+import { startClipEvents } from "./lib/clips";
 import { dmRef, loadInbox, loadParty, openChat } from "./lib/social";
 import { SettingsView } from "./views/Settings";
 import { SignIn } from "./views/SignIn";
@@ -71,6 +73,8 @@ function Shell() {
     return () => clearTimeout(t);
   }, []);
 
+  useEffect(() => startClipEvents(), []);
+
   // New messages: check the inbox every 15s (Xbox's chat push isn't used), your party every minute.
   useEffect(() => {
     const a = setInterval(() => loadInbox(true), 15_000);
@@ -99,6 +103,7 @@ function Shell() {
         m: () => openTab("mine"),
         j: () => openTab("messages"),
         p: () => openTab("friends"),
+        k: () => openTab("clips"),
         f: () => (get().settings?.layout === "pulse" ? set({ pickGames: true }) : document.getElementById("game-search")?.focus()),
         ",": () => openTab("settings"),
         r: refreshCurrent,
@@ -117,12 +122,18 @@ function Shell() {
   }, []);
 
   const pulse = settings?.layout === "pulse";
+  const glass = !!settings?.glass;
+  const seeThrough = !!settings?.backdrop && settings.backdrop !== "off";
+  // The page itself must be transparent for the Windows backdrop to show through.
+  useEffect(() => {
+    document.documentElement.classList.toggle("see-through", seeThrough);
+  }, [seeThrough]);
   const showSide = !pulse && (settings?.showSidePanel ?? true);
   const showStatus = settings?.showStatusBar ?? true;
   const game = tabGame(active);
 
   return (
-    <div className={`app ${pulse ? "pulse" : ""}`} style={{ gridTemplateRows: showStatus ? "36px 1fr auto" : "36px 1fr" }}>
+    <div className={`app ${pulse ? "pulse" : ""} ${glass ? "glass" : ""} ${seeThrough ? "see-through" : ""}`} style={{ gridTemplateRows: showStatus ? "36px 1fr auto" : "36px 1fr" }}>
       <TitleBar />
       <div className="body" style={{ gridTemplateColumns: pulse ? "84px 1fr" : showSide ? "52px auto 1fr" : "52px 1fr" }}>
         {pulse ? <PulseRail /> : <ActivityBar />}
@@ -135,6 +146,7 @@ function Shell() {
           {active === "create" && <Create />}
           {active === "messages" && <Messages />}
           {active === "friends" && <Friends />}
+          {active === "clips" && <Clips />}
           {active === "settings" && <SettingsView />}
           {game && (findTitle(game) ? <Browse key={game} titleId={game} /> : <div className="empty">Loading game…</div>)}
           {!active && (

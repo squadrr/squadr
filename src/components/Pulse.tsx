@@ -1,6 +1,6 @@
 // Pulse layout: a game rail on the left, the feed in the middle and a side pane that's always open.
 // It reuses every view from the classic layout; only the frame around them changes.
-import { Compass, Download, Headphones, MessageCircle, Plus, Radio, Settings, Sparkles, Users, X } from "lucide-react";
+import { Clapperboard, Compass, Download, Headphones, MessageCircle, Plus, Radio, Settings, Sparkles, Users, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { createFor, openGame, openTab } from "../lib/actions";
 import { openChat, convRef } from "../lib/social";
@@ -14,6 +14,7 @@ const VIEWS = [
   ["mine", Radio, "Host"],
   ["messages", MessageCircle, "Chats"],
   ["friends", Users, "Friends"],
+  ["clips", Clapperboard, "Clips"],
   ["create", Plus, "Post"],
 ] as const;
 

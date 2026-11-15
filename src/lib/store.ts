@@ -18,6 +18,11 @@ export type State = {
   guide: boolean;
   /** Pulse layout: the games flyout next to the rail is open. */
   pickGames: boolean;
+  clips: import("./clips").ClipFile[] | null;
+  clipStatus: import("./clips").ClipStatus | null;
+  /** FFmpeg download progress 0..1 while setting up clipping. */
+  clipInstall: number | null;
+  clipDir: string;
   signIn: { code: DeviceCode | null; error: string | null; busy: boolean; startedAt: number };
   settings: Settings | null;
   tabs: TabId[];
@@ -58,6 +63,10 @@ const initial: State = {
   auth: null,
   guide: false,
   pickGames: false,
+  clips: null,
+  clipStatus: null,
+  clipInstall: null,
+  clipDir: "",
   signIn: { code: null, error: null, busy: false, startedAt: 0 },
   settings: null,
   tabs: ["home"],

@@ -20,11 +20,12 @@
         "minHeight": 580,
         "decorations": false,
         "center": true,
-        "backgroundColor": "#121212"
+        "transparent": true
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "assetProtocol": { "enable": true, "scope": [] }
     }
   },
   "bundle": {

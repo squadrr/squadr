@@ -49,7 +49,7 @@ function detailFor(p: Post): Detail {
   return { post: p, members: [host, ...others], myRole: p.handleId === "mine-h" ? "host" : null };
 }
 
-let settings: Settings = { showSidePanel: true, showStatusBar: true, language: "en", pinned: ["267695549"], extraTitles: [], sound: true, consoleOnly: true, layout: (new URLSearchParams(location.search).get("layout") === "pulse" ? "pulse" : "classic") as Settings["layout"], onboarded: !new URLSearchParams(location.search).has("welcome") };
+let settings: Settings = { showSidePanel: true, showStatusBar: true, language: "en", pinned: ["267695549"], extraTitles: [], sound: true, consoleOnly: true, clipsEnabled: params.has("clips"), clipSeconds: 30, clipHotkey: "Alt+F10", clipDir: "", clipFps: 60, clipHeight: 1080, clipQuality: "high", clipAudio: true, clipMonitor: 0, glass: params.has("glass"), backdrop: (params.get("backdrop") ?? "off") as Settings["backdrop"], layout: (new URLSearchParams(location.search).get("layout") === "pulse" ? "pulse" : "classic") as Settings["layout"], onboarded: !new URLSearchParams(location.search).has("welcome") };
 
 const wait = (ms = 250) => new Promise((r) => setTimeout(r, ms));
 
@@ -74,6 +74,12 @@ export async function mockCall<T>(cmd: string, args: Record<string, unknown> = {
     case "settings_set":
       settings = args.settings as Settings;
       return r(settings);
+    case "clips_status":
+      return r({ installed: true, running: settings.clipsEnabled, encoder: "h264_amf", error: null, audio: true });
+    case "clips_dir":
+      return r("C:\\Users\\NovaPilot\\Videos\\Squadr Clips");
+    case "clips_list":
+      return r(["Squadr clip 2026-11-14 21-42-10.mp4", "Squadr clip 2026-11-14 21-15-33.mp4", "Squadr clip 2026-11-13 23-02-51.mp4"].map((name, i) => ({ name, path: `C:\\clips\\${name}`, size: 48_000_000 - i * 9_000_000, modified: now - (i * 3 + 1) * 3_600_000 })));
     case "links_get":
       return r({ discord: "", youtube: "https://www.youtube.com/@squadr_official", tiktok: "https://www.tiktok.com/@squadr_offical", github: "https://github.com/squadrr/squadr" });
     case "games_list":

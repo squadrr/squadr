@@ -1,3 +1,4 @@
+mod clips;
 mod lfg;
 mod messaging;
 mod party;
@@ -43,6 +44,7 @@ pub struct App {
     tracked: Mutex<Vec<Tracked>>,
     settings: Mutex<Settings>,
     signing_in: Mutex<u64>,
+    clipper: clips::Shared,
 }
 
 type St<'a> = State<'a, Arc<App>>;
@@ -256,10 +258,174 @@ fn settings_get(s: St) -> Settings {
 }
 
 #[tauri::command]
-fn settings_set(s: St, settings: Settings) -> Result<Settings, String> {
+fn settings_set(s: St, app: AppHandle, settings: Settings) -> Result<Settings, String> {
+    let old = s.settings.lock().unwrap().clone();
+    if old.backdrop != settings.backdrop {
+        apply_backdrop(&app, &settings.backdrop);
+    }
     save(&s.dir, SETTINGS, &settings)?;
     *s.settings.lock().unwrap() = settings.clone();
+    if clip_settings_changed(&old, &settings) {
+        let (state, app) = (s.inner().clone(), app.clone());
+        std::thread::spawn(move || apply_clips(&app, &state));
+    }
     Ok(settings)
+}
+
+// ---------------------------------------------------------------- clips
+
+fn clip_settings_changed(a: &Settings, b: &Settings) -> bool {
+    (a.clips_enabled, a.clip_seconds, &a.clip_hotkey, &a.clip_dir, a.clip_fps, a.clip_height, &a.clip_quality, a.clip_audio, a.clip_monitor)
+        != (b.clips_enabled, b.clip_seconds, &b.clip_hotkey, &b.clip_dir, b.clip_fps, b.clip_height, &b.clip_quality, b.clip_audio, b.clip_monitor)
+}
+
+fn clip_config(s: &Settings) -> clips::Config {
+    clips::Config {
+        seconds: s.clip_seconds.clamp(5, 300),
+        fps: s.clip_fps.clamp(15, 120),
+        monitor: s.clip_monitor,
+        height: s.clip_height,
+        quality: s.clip_quality.clone(),
+        audio: s.clip_audio,
+    }
+}
+
+fn clips_dir_for(app: &AppHandle, s: &Settings) -> PathBuf {
+    if !s.clip_dir.trim().is_empty() {
+        return PathBuf::from(s.clip_dir.trim());
+    }
+    app.path().video_dir().unwrap_or_else(|_| std::env::temp_dir()).join("Squadr Clips")
+}
+
+/// Start/stop the replay buffer and (re)register the save hotkey to match the settings.
+fn apply_clips(app: &AppHandle, state: &Arc<App>) {
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+    let s = state.settings.lock().unwrap().clone();
+    let gs = app.global_shortcut();
+    let _ = gs.unregister_all();
+    let dir = clips_dir_for(app, &s);
+    let _ = std::fs::create_dir_all(&dir);
+    let _ = app.asset_protocol_scope().allow_directory(&dir, false);
+    if !s.clips_enabled {
+        state.clipper.stop();
+        let _ = app.emit("clips-status", state.clipper.status());
+        return;
+    }
+    let mut status = match state.clipper.start(clip_config(&s)) {
+        Ok(()) => state.clipper.status(),
+        Err(e) => {
+            let mut st = state.clipper.status();
+            st.error = Some(e);
+            st
+        }
+    };
+    if !s.clip_hotkey.trim().is_empty() {
+        if let Err(e) = gs.register(s.clip_hotkey.as_str()) {
+            status.error = Some(format!("Couldn't use the keybind {}: {e}", s.clip_hotkey));
+        }
+    }
+    let _ = app.emit("clips-status", status);
+}
+
+/// Save a clip and tell the window (used by the hotkey and the Save button).
+fn save_clip(app: &AppHandle) -> Result<String, String> {
+    let state = app.state::<Arc<App>>().inner().clone();
+    let dir = clips_dir_for(app, &state.settings.lock().unwrap().clone());
+    let res = state.clipper.save(&dir).map(|p| p.to_string_lossy().to_string());
+    let _ = app.emit(
+        "clip",
+        match &res {
+            Ok(p) => json!({ "ok": true, "path": p }),
+            Err(e) => json!({ "ok": false, "error": e }),
+        },
+    );
+    res
+}
+
+#[tauri::command]
+fn clips_status(s: St) -> clips::Status {
+    s.clipper.status()
+}
+
+#[tauri::command]
+async fn clips_install(s: St<'_>, app: AppHandle) -> Result<(), String> {
+    let state = s.inner().clone();
+    blocking(move || {
+        let a = app.clone();
+        state.clipper.install(move |p| {
+            let _ = a.emit("clips-install", p);
+        })?;
+        apply_clips(&app, &state);
+        Ok(())
+    })
+    .await
+}
+
+#[tauri::command]
+async fn clips_save(app: AppHandle) -> Result<String, String> {
+    blocking(move || save_clip(&app)).await
+}
+
+#[tauri::command]
+fn clips_dir(s: St, app: AppHandle) -> String {
+    clips_dir_for(&app, &s.settings.lock().unwrap()).to_string_lossy().to_string()
+}
+
+#[tauri::command]
+fn clips_list(s: St, app: AppHandle) -> Vec<clips::ClipFile> {
+    clips::list(&clips_dir_for(&app, &s.settings.lock().unwrap()))
+}
+
+/// Only .mp4 files directly inside the clips folder can be opened, revealed or deleted.
+fn clip_path(s: &St, app: &AppHandle, path: &str) -> Result<PathBuf, String> {
+    let dir = clips_dir_for(app, &s.settings.lock().unwrap());
+    let p = PathBuf::from(path);
+    let ok = p.parent().map(|d| d == dir).unwrap_or(false) && p.extension().map(|e| e.eq_ignore_ascii_case("mp4")).unwrap_or(false) && p.exists();
+    if ok {
+        Ok(p)
+    } else {
+        Err("That isn't a clip in your clips folder".into())
+    }
+}
+
+#[tauri::command]
+fn clips_open(s: St, app: AppHandle, path: String) -> Result<(), String> {
+    let p = clip_path(&s, &app, &path)?;
+    std::process::Command::new("explorer").arg(p).spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn clips_reveal(s: St, app: AppHandle, path: String) -> Result<(), String> {
+    let p = clip_path(&s, &app, &path)?;
+    std::process::Command::new("explorer").arg(format!("/select,{}", p.to_string_lossy())).spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn clips_delete(s: St, app: AppHandle, path: String) -> Result<(), String> {
+    let p = clip_path(&s, &app, &path)?;
+    std::fs::remove_file(p).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn clips_open_folder(s: St, app: AppHandle) -> Result<(), String> {
+    let dir = clips_dir_for(&app, &s.settings.lock().unwrap());
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    std::process::Command::new("explorer").arg(dir).spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn clips_pick_folder(app: AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    blocking(move || {
+        Ok(app
+            .dialog()
+            .file()
+            .set_title("Choose a folder for your clips")
+            .blocking_pick_folder()
+            .and_then(|p| p.into_path().ok())
+            .map(|p| p.to_string_lossy().to_string()))
+    })
+    .await
 }
 
 // ---------------------------------------------------------------- games
@@ -784,6 +950,19 @@ fn leave_everything(app: &App) {
     let _ = save(&app.dir, TRACKED, &Vec::<Tracked>::new());
 }
 
+/// Windows backdrop behind the (transparent) window: Acrylic, Mica, or none.
+fn apply_backdrop(app: &AppHandle, mode: &str) {
+    use tauri::utils::config::WindowEffectsConfig;
+    use tauri::window::Effect;
+    let Some(w) = app.get_webview_window("main") else { return };
+    let effect = match mode {
+        "acrylic" => Some(Effect::Acrylic),
+        "mica" => Some(Effect::Mica),
+        _ => None,
+    };
+    let _ = w.set_effects(effect.map(|e| WindowEffectsConfig { effects: vec![e], ..Default::default() }));
+}
+
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -793,6 +972,19 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        let app = app.clone();
+                        std::thread::spawn(move || {
+                            let _ = save_clip(&app);
+                        });
+                    }
+                })
+                .build(),
+        )
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
@@ -805,11 +997,17 @@ pub fn run() {
                 tracked: Mutex::new(load(&dir, TRACKED)),
                 settings: Mutex::new(load(&dir, SETTINGS)),
                 signing_in: Mutex::new(0),
+                clipper: Arc::new(clips::Clipper::new(&dir)),
                 dir,
             });
+            apply_backdrop(app.handle(), &state.settings.lock().unwrap().backdrop.clone());
             app.manage(state.clone());
             if state.auth.status().signed_in {
                 state.start_rta(app.handle().clone());
+            }
+            {
+                let (state, app) = (state.clone(), app.handle().clone());
+                std::thread::spawn(move || apply_clips(&app, &state));
             }
             Ok(())
         })
@@ -822,6 +1020,16 @@ pub fn run() {
             rta_status,
             settings_get,
             settings_set,
+            clips_status,
+            clips_install,
+            clips_save,
+            clips_dir,
+            clips_list,
+            clips_open,
+            clips_reveal,
+            clips_delete,
+            clips_open_folder,
+            clips_pick_folder,
             games_list,
             games_search,
             lfg_query,
@@ -852,6 +1060,7 @@ pub fn run() {
     app.run(|handle, ev| {
         if let RunEvent::Exit = ev {
             if let Some(state) = handle.try_state::<Arc<App>>() {
+                state.clipper.stop();
                 leave_everything(&state);
                 state.rta.stop();
             }

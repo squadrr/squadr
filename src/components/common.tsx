@@ -1,4 +1,4 @@
-import { Check, CirclePlus, Gamepad2, Headphones, House, MessageSquare, Settings, Users, type LucideIcon } from "lucide-react";
+import { Check, CirclePlus, Clapperboard, Gamepad2, Headphones, House, MessageSquare, Settings, Users, type LucideIcon } from "lucide-react";
 import { useState } from "react";
 import type { Person, Title } from "../lib/api";
 import { findTitle } from "../lib/actions";
@@ -10,6 +10,7 @@ export const VIEWS: Record<string, { label: string; icon: LucideIcon; kbd?: stri
   create: { label: "New post", icon: CirclePlus, kbd: "Ctrl+N" },
   messages: { label: "Messages", icon: MessageSquare, kbd: "Ctrl+J" },
   friends: { label: "Friends & party", icon: Headphones, kbd: "Ctrl+P" },
+  clips: { label: "Clips", icon: Clapperboard, kbd: "Ctrl+K" },
   settings: { label: "Settings", icon: Settings, kbd: "Ctrl+," },
 };
 

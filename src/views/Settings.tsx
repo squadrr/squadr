@@ -6,6 +6,7 @@ import { LANGUAGES, xboxProfileUrl } from "../lib/format";
 import { set, useApp } from "../lib/store";
 import { DiscordIcon, TikTokIcon, useLinks, YouTubeIcon } from "./Welcome";
 import { checkForUpdates, installUpdate, useUpdate } from "../lib/update";
+import { ClipSettings } from "./ClipSettings";
 
 const LAYOUTS = [
   { id: "classic", name: "Classic", blurb: "Tabs, a games panel and a status bar. Black and white." },
@@ -97,6 +98,24 @@ export function SettingsView() {
                 ))}
               </div>
             </div>
+            <div className="form-row">
+              <div className="lbl">
+                <b>Liquid glass</b>
+                <span>Frosted, see-through panels with a glossy edge. Works with Classic and Pulse.</span>
+              </div>
+              <Switch on={settings.glass} onClick={() => saveSettings({ glass: !settings.glass })} />
+            </div>
+            <div className="form-row">
+              <div className="lbl">
+                <b>Transparent background</b>
+                <span>Let your desktop show through, blurred. Acrylic works on Windows 10 and 11; Mica is subtler and needs Windows 11.</span>
+              </div>
+              <select className="field" style={{ width: 150 }} value={settings.backdrop} onChange={(e) => saveSettings({ backdrop: e.target.value as typeof settings.backdrop })}>
+                <option value="off">Off</option>
+                <option value="acrylic">Acrylic</option>
+                <option value="mica">Mica</option>
+              </select>
+            </div>
             {settings.layout !== "pulse" && (
               <div className="form-row">
                 <div className="lbl">
@@ -114,6 +133,8 @@ export function SettingsView() {
               <Switch on={settings.showStatusBar} onClick={() => saveSettings({ showStatusBar: !settings.showStatusBar })} />
             </div>
           </div>
+
+          <ClipSettings />
 
           <div className="group-title">Community</div>
           <div className="form-card">

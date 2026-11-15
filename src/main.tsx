@@ -5,6 +5,7 @@ import App from "./App";
 import "./styles.css";
 import "./squadr.css";
 import "./pulse.css";
+import "./glass.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

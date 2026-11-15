@@ -163,3 +163,137 @@ fn probe_applicant_shape() {
         }
     }
 }
+
+/// Sign a second Xbox account in to its own folder ($PROBE_DIR), separate from the app's own sign-in.
+/// Prints the microsoft.com/link code, then waits for approval.
+#[test]
+#[ignore]
+fn probe_signin() {
+    use crate::xauth::Poll;
+    use std::io::Write;
+    let dir = std::path::PathBuf::from(std::env::var("PROBE_DIR").expect("PROBE_DIR"));
+    let auth = Auth::new(&dir);
+    if auth.status().signed_in {
+        println!("ALREADY {}", auth.status().gamertag);
+        return;
+    }
+    let dc = auth.begin().unwrap();
+    println!("CODE {} at {}", dc.user_code, dc.verification_uri);
+    std::io::stdout().flush().ok();
+    let until = crate::store::now_ms() + dc.expires_in * 1000;
+    while crate::store::now_ms() < until {
+        std::thread::sleep(std::time::Duration::from_secs(dc.interval.max(2)));
+        match auth.poll(&dc) {
+            Ok(Poll::Pending) => continue,
+            Ok(Poll::Done) => {
+                println!("SIGNED IN as {}", auth.status().gamertag);
+                return;
+            }
+            Err(e) if e.contains("Couldn't reach") => {
+                println!("RETRY {e}");
+                continue;
+            }
+            Err(e) => {
+                println!("ERROR {e}");
+                return;
+            }
+        }
+    }
+    println!("EXPIRED");
+}
+
+/// From the account in $PROBE_DIR: send $PROBE_TEXT to xuid $PROBE_TO (if set), then print the last
+/// messages of that conversation (newest last) so replies can be read.
+#[test]
+#[ignore]
+fn probe_dm() {
+    use crate::messaging;
+    let dir = std::path::PathBuf::from(std::env::var("PROBE_DIR").expect("PROBE_DIR"));
+    let auth = Arc::new(Auth::new(&dir));
+    let x = Xbl::new(auth.clone());
+    let me = auth.xsts().expect("signed in").xuid;
+    let to = std::env::var("PROBE_TO").expect("PROBE_TO");
+    if let Ok(text) = std::env::var("PROBE_TEXT") {
+        match messaging::send_dm(&x, &to, &text) {
+            Ok(()) => println!("SENT"),
+            Err(e) => println!("SEND FAILED {} {}", e.status, e.message),
+        }
+    }
+    match messaging::dm_thread(&x, &to, None) {
+        Ok(t) => {
+            let mut m = t.messages.clone();
+            m.sort_by(|a, b| a.time.cmp(&b.time));
+            for msg in m.iter().rev().take(8).rev() {
+                println!("MSG {} {} {}", msg.time, if msg.sender == me { "me" } else { "them" }, msg.text.replace('\n', " "));
+            }
+        }
+        Err(e) => println!("THREAD FAILED {} {}", e.status, e.message),
+    }
+}
+
+/// Clipping end to end in $PROBE_DIR: install FFmpeg if needed, record ~12s, save a 10s clip there.
+#[test]
+#[ignore]
+fn probe_clips() {
+    use crate::clips::{Clipper, Config};
+    let dir = std::path::PathBuf::from(std::env::var("PROBE_DIR").expect("PROBE_DIR"));
+    let c = Clipper::new(&dir);
+    if !c.status().installed {
+        let t = std::time::Instant::now();
+        c.install(|p| if (p * 100.0) as u32 % 20 == 0 { println!("install {:.0}%", p * 100.0) }).unwrap();
+        println!("installed in {:?}", t.elapsed());
+    }
+    c.start(Config { seconds: 10, fps: 60, monitor: 0, height: 1080, quality: "high".into(), audio: true }).unwrap();
+    println!("status {:?}", serde_json::to_string(&c.status()).unwrap());
+    std::thread::sleep(std::time::Duration::from_secs(13));
+    let t = std::time::Instant::now();
+    let out = c.save(&dir.join("out"));
+    println!("save {:?} in {:?}", out, t.elapsed());
+    println!("status {:?}", serde_json::to_string(&c.status()).unwrap());
+    c.stop();
+}
+
+/// Loopback audio check: capture 6s of what the default output device plays, print stats.
+#[test]
+#[ignore]
+fn probe_loopback() {
+    use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+    let host = cpal::default_host();
+    let dev = host.default_output_device().unwrap();
+    let cfg = dev.default_output_config().unwrap();
+    println!("device {:?} cfg {:?}", dev.name(), cfg);
+    let stats = Arc::new(std::sync::Mutex::new((0usize, 0usize, 0f32)));
+    let s2 = stats.clone();
+    let stream = dev
+        .build_input_stream(&cfg.clone().into(), move |d: &[f32], _: &_| {
+            let mut s = s2.lock().unwrap();
+            s.0 += 1;
+            s.1 += d.len();
+            for x in d { s.2 = s.2.max(x.abs()); }
+        }, |e| println!("err {e}"), None)
+        .unwrap();
+    stream.play().unwrap();
+    std::thread::sleep(std::time::Duration::from_secs(6));
+    println!("callbacks {:?}", stats.lock().unwrap());
+}
+
+/// Capture every output device at once for 6s and print each one's peak level.
+#[test]
+#[ignore]
+fn probe_loopback_all() {
+    use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+    let host = cpal::default_host();
+    let mut keep = vec![];
+    for dev in host.output_devices().unwrap() {
+        let name = dev.name().unwrap_or_default();
+        let Ok(cfg) = dev.default_output_config() else { continue };
+        if cfg.sample_format() != cpal::SampleFormat::F32 { println!("{name}: {:?}", cfg.sample_format()); continue; }
+        let peak = Arc::new(std::sync::Mutex::new(0f32));
+        let p2 = peak.clone();
+        if let Ok(s) = dev.build_input_stream(&cfg.into(), move |d: &[f32], _: &_| { let mut p = p2.lock().unwrap(); for x in d { *p = p.max(x.abs()); } }, |_| {}, None) {
+            if s.play().is_ok() { keep.push((name, peak, s)); }
+        }
+    }
+    std::thread::sleep(std::time::Duration::from_secs(6));
+    for (n, p, _) in &keep { println!("PEAK {n}: {}", *p.lock().unwrap()); }
+}
