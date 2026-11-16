@@ -1,4 +1,5 @@
 mod clips;
+mod crash;
 mod lfg;
 mod messaging;
 mod party;
@@ -964,6 +965,7 @@ fn apply_backdrop(app: &AppHandle, mode: &str) {
 }
 
 pub fn run() {
+    crash::install();
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(w) = app.get_webview_window("main") {
