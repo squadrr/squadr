@@ -1,4 +1,5 @@
-import { api, errText, social, type AuthStatus, type MineItem, type Person, type Post, type Settings, type Title } from "./api";
+import { api, desktop, errText, social, type AuthStatus, type AutoRepost, type MineItem, type NewPost, type Person, type Post, type Settings, type Template, type Title } from "./api";
+import { loadPlayers, recordGroups } from "./players";
 import { isSpam } from "./spam";
 import { defaultFilters, gameTab, get, reset, set, tabGame, type BrowseState, type TabId } from "./store";
 
@@ -7,6 +8,13 @@ export function toast(kind: "info" | "good" | "error", title: string, body?: str
   const id = ++toastId;
   set((s) => ({ toasts: [...s.toasts.slice(-3), { id, kind, title, body }] }));
   setTimeout(() => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), kind === "error" ? 7000 : 4500);
+}
+
+/** A toast and a chime, plus a Windows notification when Squadr isn't in front of you (minimized, in the tray, or another app focused). */
+export function alertUser(kind: "info" | "good" | "error", title: string, body?: string) {
+  toast(kind, title, body);
+  chime();
+  if (document.hidden || !document.hasFocus()) desktop.notify(title, body ?? "").catch(() => {});
 }
 
 const busy = (key: string, on: boolean) => set((s) => ({ busy: { ...s.busy, [key]: on } }));
@@ -46,6 +54,9 @@ export async function enterApp(status: AuthStatus) {
   reset({ auth: status, rta: await api.rtaStatus().catch(() => false) });
   const settings = await api.settings();
   set({ settings, draft: { ...get().draft, language: settings.language || "en" } });
+  loadPlayers();
+  // a post set to repost from an earlier run ended when Squadr closed
+  if (settings.autoRepost) saveSettings({ autoRepost: null });
   api.people([status.xuid]).then(mergePeople).catch(() => {});
   loadGames();
   refreshMine(false);
@@ -295,6 +306,7 @@ export async function withdraw(p: { scid: string; sessionName: string; handleId:
 }
 
 export async function cancelPost(p: { scid: string; sessionName: string; handleId: string }) {
+  if (get().settings?.autoRepost?.sessionName === p.sessionName) saveSettings({ autoRepost: null });
   await guarded(`cancel:${p.sessionName}`, () => api.cancel(p), "Couldn't cancel the post");
   toast("info", "Post cancelled");
   refreshMine(false);
@@ -317,17 +329,78 @@ export async function createPost() {
   const d = get().draft;
   const t = findTitle(d.titleId);
   if (!t) return toast("error", "Pick a game first");
-  const post = await guarded(
-    "create",
-    () => api.create({ scid: t.scid, titleId: t.titleId, description: d.description, language: d.language, need: d.need, tags: d.tags }, t.name),
-    "Couldn't post",
-  );
+  const np: NewPost = { scid: t.scid, titleId: t.titleId, description: d.description, language: d.language, need: d.need, tags: d.tags };
+  const post = await guarded("create", () => api.create(np, t.name), "Couldn't post");
   if (!post) return;
-  toast("good", "You're live", `Your ${t.name} post is up. Requests show up under My LFG.`);
+  saveSettings({ autoRepost: d.repost ? { sessionName: post.sessionName, post: np, titleName: t.name, count: 0 } : null });
+  toast("good", "You're live", `Your ${t.name} post is up. Requests show up under My LFG.${d.repost ? " If it ends before it fills, Squadr puts it back up." : ""}`);
   set((s) => ({ draft: { ...s.draft, description: "" } }));
   await refreshMine(false);
   openTab("mine");
   refreshBrowse(t.titleId);
+}
+
+// ---------------------------------------------------------------- templates
+
+export function saveTemplate(name: string) {
+  const d = get().draft;
+  const t = findTitle(d.titleId);
+  if (!t || !d.description.trim()) return toast("error", "Pick a game and write a description first");
+  const list = get().settings?.templates ?? [];
+  const tpl: Template = { id: crypto.randomUUID(), name: name.trim().slice(0, 40) || t.name, titleId: t.titleId, titleName: t.name, description: d.description, need: d.need, tags: d.tags, language: d.language };
+  saveSettings({ templates: [...list, tpl].slice(-12) });
+  toast("good", "Template saved", `"${tpl.name}" is one click away next time.`);
+}
+
+export function fillFromTemplate(tpl: Template) {
+  if (!findTitle(tpl.titleId)) {
+    const g = get().games?.find((x) => x.titleId === tpl.titleId);
+    if (g) remember([g]);
+  }
+  set((s) => ({ draft: { ...s.draft, titleId: tpl.titleId, description: tpl.description, need: tpl.need, tags: tpl.tags, language: tpl.language } }));
+}
+
+export async function postTemplate(tpl: Template) {
+  fillFromTemplate(tpl);
+  if (!findTitle(tpl.titleId)) return toast("error", `${tpl.titleName} isn't in your games`, "Search for it in the games panel, then try again.");
+  await createPost();
+}
+
+export function deleteTemplate(id: string) {
+  saveSettings({ templates: (get().settings?.templates ?? []).filter((t) => t.id !== id) });
+}
+
+// ---------------------------------------------------------------- auto-repost
+
+let reposting = false;
+async function repost(ar: AutoRepost) {
+  if (reposting) return;
+  reposting = true;
+  try {
+    const post = await api.create(ar.post, ar.titleName);
+    await saveSettings({ autoRepost: { ...ar, sessionName: post.sessionName, count: ar.count + 1 } });
+    alertUser("good", `Reposted your ${ar.titleName} post`, "It ended before it filled, so Squadr put it back up.");
+    refreshMine(false);
+  } catch (e) {
+    saveSettings({ autoRepost: null });
+    alertUser("error", `Couldn't repost your ${ar.titleName} post`, errText(e));
+  } finally {
+    reposting = false;
+  }
+}
+
+/** Put the post back up if it ended on its own before filling. */
+function checkRepost(items: MineItem[]) {
+  const ar = get().settings?.autoRepost;
+  if (!ar) return;
+  const it = items.find((i) => i.tracked.sessionName === ar.sessionName);
+  if (!it || it.detail || it.tracked.role !== "host" || !it.gone?.startsWith("Your post ended")) return;
+  const last = lastMine.get(ar.sessionName)?.detail?.post;
+  if ((last && last.needs <= 0) || ar.count >= 30) {
+    saveSettings({ autoRepost: null }); // it filled (or we've reposted plenty)
+    return;
+  }
+  repost(ar);
 }
 
 const hostName = (p: Post) => get().people[p.hostXuid]?.gamertag ?? "The host";
@@ -345,6 +418,8 @@ export async function refreshMine(notify = true) {
     if (seq !== mineSeq) return;
     mergePeople(people);
     if (notify) announce(items);
+    recordGroups(items);
+    checkRepost(items);
     lastMine = new Map(items.map((i) => [i.tracked.sessionName, i]));
     const applied: Record<string, true> = {};
     for (const i of items) if (i.detail && i.tracked.role === "applicant") applied[i.tracked.handleId] = true;
@@ -362,14 +437,12 @@ function announce(items: MineItem[]) {
     if (it.tracked.role === "host" && it.detail) {
       const old = new Set(before.detail.members.map((m) => m.xuid));
       for (const m of it.detail.members.filter((m) => m.role === "applicant" && !old.has(m.xuid))) {
-        toast("info", `${m.gamertag} wants to join`, m.message || `Your ${it.tracked.titleName} post`);
-        chime();
+        alertUser("info", `${m.gamertag} wants to join`, m.message || `Your ${it.tracked.titleName} post`);
       }
     }
     if (it.tracked.role === "applicant") {
       if (it.detail?.myRole === "confirmed" && before.detail.myRole !== "confirmed") {
-        toast("good", "You're in!", `The host picked you for ${it.tracked.titleName}. Watch for their party invite.`);
-        chime();
+        alertUser("good", "You're in!", `The host picked you for ${it.tracked.titleName}. Watch for their party invite.`);
       } else if (it.gone) toast("info", it.tracked.titleName, it.gone);
     }
   }

@@ -266,7 +266,7 @@ fn probe_loopback() {
     let s2 = stats.clone();
     let stream = dev
         .build_input_stream(&cfg.clone().into(), move |d: &[f32], _: &_| {
-            let mut s = s2.lock().unwrap();
+            let mut s = s2.lock().unwrap_or_else(|e| e.into_inner());
             s.0 += 1;
             s.1 += d.len();
             for x in d { s.2 = s.2.max(x.abs()); }
@@ -274,7 +274,7 @@ fn probe_loopback() {
         .unwrap();
     stream.play().unwrap();
     std::thread::sleep(std::time::Duration::from_secs(6));
-    println!("callbacks {:?}", stats.lock().unwrap());
+    println!("callbacks {:?}", stats.lock().unwrap_or_else(|e| e.into_inner()));
 }
 
 /// Capture every output device at once for 6s and print each one's peak level.
@@ -290,10 +290,10 @@ fn probe_loopback_all() {
         if cfg.sample_format() != cpal::SampleFormat::F32 { println!("{name}: {:?}", cfg.sample_format()); continue; }
         let peak = Arc::new(std::sync::Mutex::new(0f32));
         let p2 = peak.clone();
-        if let Ok(s) = dev.build_input_stream(&cfg.into(), move |d: &[f32], _: &_| { let mut p = p2.lock().unwrap(); for x in d { *p = p.max(x.abs()); } }, |_| {}, None) {
+        if let Ok(s) = dev.build_input_stream(&cfg.into(), move |d: &[f32], _: &_| { let mut p = p2.lock().unwrap_or_else(|e| e.into_inner()); for x in d { *p = p.max(x.abs()); } }, |_| {}, None) {
             if s.play().is_ok() { keep.push((name, peak, s)); }
         }
     }
     std::thread::sleep(std::time::Duration::from_secs(6));
-    for (n, p, _) in &keep { println!("PEAK {n}: {}", *p.lock().unwrap()); }
+    for (n, p, _) in &keep { println!("PEAK {n}: {}", *p.lock().unwrap_or_else(|e| e.into_inner())); }
 }

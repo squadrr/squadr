@@ -10,7 +10,7 @@ export type Toast = { id: number; kind: "info" | "good" | "error"; title: string
 
 export type BrowseState = { posts: Post[] | null; loading: boolean; error: string | null; filters: Filters; at: number; selected: string | null };
 export type DetailState = { detail: Detail | null; loading: boolean; error: string | null };
-export type Draft = { titleId: string; description: string; need: number; tags: string[]; language: string };
+export type Draft = { titleId: string; description: string; need: number; tags: string[]; language: string; repost: boolean };
 
 export type State = {
   auth: AuthStatus | null;
@@ -55,6 +55,14 @@ export type State = {
   friendsError: string | null;
   party: Party | null;
   partyChecked: boolean;
+
+  /** People you've played with (players.json), by xuid. */
+  players: Record<string, import("./players").Player>;
+  /** Open posts matching each alert right now, by alert id. */
+  alertMatches: Record<string, Post[]>;
+  /** Handle ids of matches that showed up since you last looked at Alerts. */
+  alertNew: string[];
+  alertsChecked: number;
 };
 
 export const defaultFilters = (language = ""): Filters => ({ language, tags: [], minNeeds: 1 });
@@ -86,7 +94,7 @@ const initial: State = {
   applied: {},
   busy: {},
   rta: false,
-  draft: { titleId: "", description: "", need: 1, tags: [], language: "en" },
+  draft: { titleId: "", description: "", need: 1, tags: [], language: "en", repost: false },
   toasts: [],
   inbox: null,
   requests: [],
@@ -98,6 +106,10 @@ const initial: State = {
   friendsError: null,
   party: null,
   partyChecked: false,
+  players: {},
+  alertMatches: {},
+  alertNew: [],
+  alertsChecked: 0,
 };
 
 let state = initial;

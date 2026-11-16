@@ -91,11 +91,24 @@ pub struct Settings {
     pub clip_quality: String,
     pub clip_audio: bool,
     pub clip_monitor: u32,
+    /// The window's close button hides Squadr to the tray (so posts stay live) instead of quitting.
+    pub close_to_tray: bool,
+    /// Start Squadr in the tray when you sign in to Windows.
+    pub start_with_windows: bool,
+    /// Windows notifications for new requests, messages and alert matches while Squadr isn't focused.
+    pub notifications: bool,
+    /// LFG alerts (shape owned by the frontend).
+    pub alerts: Vec<serde_json::Value>,
+    /// Saved post templates (shape owned by the frontend).
+    pub templates: Vec<serde_json::Value>,
+    /// The hosted post to put back up when it ends without filling (shape owned by the frontend).
+    pub auto_repost: Option<serde_json::Value>,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Settings { show_side_panel: true, show_status_bar: true, language: "en".into(), pinned: vec![], extra_titles: vec![], sound: true, console_only: true, onboarded: false, layout: "classic".into(), glass: false, backdrop: "off".into(),
-            clips_enabled: false, clip_seconds: 30, clip_hotkey: "Alt+F10".into(), clip_dir: String::new(), clip_fps: 60, clip_height: 1080, clip_quality: "high".into(), clip_audio: true, clip_monitor: 0 }
+            clips_enabled: false, clip_seconds: 30, clip_hotkey: "Alt+F10".into(), clip_dir: String::new(), clip_fps: 60, clip_height: 1080, clip_quality: "high".into(), clip_audio: true, clip_monitor: 0,
+            close_to_tray: true, start_with_windows: false, notifications: true, alerts: vec![], templates: vec![], auto_repost: None }
     }
 }

@@ -5,7 +5,7 @@ import { SidePanel } from "./components/SidePanel";
 import { GamesFlyout, PulseRail } from "./components/Pulse";
 import { refreshCurrent, TitleBar } from "./components/TitleBar";
 import { closeTab, createFor, enterApp, findTitle, onTap, openGame, openTab, refreshMine, toast } from "./lib/actions";
-import { api, isTauri, on, type AuthStatus } from "./lib/api";
+import { api, desktop, isTauri, on, type AuthStatus } from "./lib/api";
 import { get, set, tabGame, useApp } from "./lib/store";
 import { Browse } from "./views/Browse";
 import { Create } from "./views/Create";
@@ -14,6 +14,9 @@ import { Mine } from "./views/Mine";
 import { Messages } from "./views/Messages";
 import { Friends } from "./views/Friends";
 import { Clips } from "./views/Clips";
+import { Alerts } from "./views/Alerts";
+import { Players } from "./views/Players";
+import { startAlerts } from "./lib/alerts";
 import { startClipEvents } from "./lib/clips";
 import { dmRef, loadInbox, loadParty, openChat } from "./lib/social";
 import { SettingsView } from "./views/Settings";
@@ -35,6 +38,18 @@ export default function App() {
     });
     const offRta = on<{ connected: boolean }>("rta", (r) => set({ rta: r.connected }));
     const offTap = on<string>("tap", onTap);
+    // tray menu: "New post"
+    const offNav = on<string>("nav", (v) => (get().auth?.signedIn ? (v === "create" ? createFor(tabGame(get().active)) : openTab(v)) : undefined));
+    const offHidden = on<null>("hidden-to-tray", () => {
+      let told = false;
+      try {
+        told = localStorage.getItem("squadr.toldTray") === "1";
+        localStorage.setItem("squadr.toldTray", "1");
+      } catch {
+        /* no storage */
+      }
+      if (!told) desktop.notify("Squadr is still running", "It's in the tray so your posts and alerts stay live. Right-click the tray icon to quit.").catch(() => {});
+    });
     const noMenu = (e: MouseEvent) => {
       if (!(e.target as HTMLElement).closest("input, textarea")) e.preventDefault();
     };
@@ -43,6 +58,8 @@ export default function App() {
       offAuth();
       offRta();
       offTap();
+      offNav();
+      offHidden();
       window.removeEventListener("contextmenu", noMenu);
     };
   }, []);
@@ -74,6 +91,8 @@ function Shell() {
   }, []);
 
   useEffect(() => startClipEvents(), []);
+  useEffect(() => startAlerts(), []);
+  useTrayBadge();
 
   // New messages: check the inbox every 15s (Xbox's chat push isn't used), your party every minute.
   useEffect(() => {
@@ -104,6 +123,8 @@ function Shell() {
         j: () => openTab("messages"),
         p: () => openTab("friends"),
         k: () => openTab("clips"),
+        l: () => openTab("alerts"),
+        u: () => openTab("players"),
         f: () => (get().settings?.layout === "pulse" ? set({ pickGames: true }) : document.getElementById("game-search")?.focus()),
         ",": () => openTab("settings"),
         r: refreshCurrent,
@@ -147,6 +168,8 @@ function Shell() {
           {active === "messages" && <Messages />}
           {active === "friends" && <Friends />}
           {active === "clips" && <Clips />}
+          {active === "alerts" && <Alerts />}
+          {active === "players" && <Players />}
           {active === "settings" && <SettingsView />}
           {game && (findTitle(game) ? <Browse key={game} titleId={game} /> : <div className="empty">Loading game…</div>)}
           {!active && (
@@ -162,4 +185,24 @@ function Shell() {
       {toasts.length > 0 && <Toasts />}
     </div>
   );
+}
+
+/** Red dot on the tray icon and taskbar button while something waits for you. */
+function useTrayBadge() {
+  const { mine, inbox, requests, alertNew } = useApp();
+  const pending = (mine ?? []).filter((m) => m.tracked.role === "host").reduce((n, m) => n + (m.detail?.members.filter((x) => x.role === "applicant").length ?? 0), 0);
+  const unread = (inbox ?? []).filter((c) => c.unread && !c.muted).length;
+  const reqs = requests.filter((c) => c.unread).length;
+  const alerts = alertNew.length;
+  const total = pending + unread + reqs + alerts;
+  useEffect(() => {
+    const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+    const parts = [
+      pending > 0 && `${plural(pending, "person wants", "people want")} to join`,
+      unread > 0 && plural(unread, "unread chat", "unread chats"),
+      reqs > 0 && plural(reqs, "message request", "message requests"),
+      alerts > 0 && plural(alerts, "new alert match", "new alert matches"),
+    ].filter(Boolean);
+    desktop.badge(total, parts.join(" · ")).catch(() => {});
+  }, [total, pending, unread, reqs, alerts]);
 }

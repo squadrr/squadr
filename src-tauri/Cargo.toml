@@ -1,6 +1,6 @@
 [package]
 name = "squadr"
-version = "0.2.6"
+version = "0.3.0"
 description = "Squadr - Xbox Looking for Group"
 edition = "2021"
 
@@ -12,11 +12,12 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["protocol-asset"] }
+tauri = { version = "2", features = ["protocol-asset", "tray-icon"] }
 tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-dialog = "2"
+tauri-plugin-notification = "2"
 cpal = "0.15"
 sha2 = "0.10"
 zip = { version = "2", default-features = false, features = ["deflate"] }
@@ -37,6 +38,7 @@ windows-sys = { version = "0.61.2", features = [
   "Win32_System_Threading",
   "Win32_System_SystemInformation",
   "Win32_UI_WindowsAndMessaging",
+  "Win32_System_Registry",
 ] }
 
 [profile.release]

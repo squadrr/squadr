@@ -1,6 +1,6 @@
 // Pulse layout: a game rail on the left, the feed in the middle and a side pane that's always open.
 // It reuses every view from the classic layout; only the frame around them changes.
-import { Clapperboard, Compass, Download, Headphones, MessageCircle, Plus, Radio, Settings, Sparkles, Users, X } from "lucide-react";
+import { BellRing, Clapperboard, Compass, Contact, Download, Headphones, MessageCircle, Plus, Radio, Settings, Sparkles, Users, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { createFor, openGame, openTab } from "../lib/actions";
 import { openChat, convRef } from "../lib/social";
@@ -14,12 +14,14 @@ const VIEWS = [
   ["mine", Radio, "Host"],
   ["messages", MessageCircle, "Chats"],
   ["friends", Users, "Friends"],
+  ["alerts", BellRing, "Alerts"],
+  ["players", Contact, "Players"],
   ["clips", Clapperboard, "Clips"],
   ["create", Plus, "Post"],
 ] as const;
 
 export function PulseRail() {
-  const { active, auth, people, mine, inbox, party, games, settings, pickGames } = useApp();
+  const { active, auth, people, mine, inbox, party, games, settings, pickGames, alertNew } = useApp();
   const update = useUpdate();
   const me = auth ? people[auth.xuid] : null;
   const pending = (mine ?? []).filter((m) => m.tracked.role === "host").reduce((n, m) => n + (m.detail?.members.filter((x) => x.role === "applicant").length ?? 0), 0);
@@ -40,6 +42,7 @@ export function PulseRail() {
             <span>{label}</span>
             {v === "mine" && pending > 0 && <i className="pu-count">{pending}</i>}
             {v === "messages" && unread > 0 && <i className="pu-count">{unread > 99 ? "99+" : unread}</i>}
+            {v === "alerts" && alertNew.length > 0 && <i className="pu-count">{alertNew.length > 99 ? "99+" : alertNew.length}</i>}
             {v === "friends" && party && <i className="pu-dot-badge" title="You're in a party" />}
           </button>
         ))}

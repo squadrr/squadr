@@ -8,7 +8,15 @@ export type Settings = {
   showSidePanel: boolean; showStatusBar: boolean; language: string; pinned: string[]; extraTitles: string[]; sound: boolean;
   consoleOnly: boolean; onboarded: boolean; layout: "classic" | "pulse"; glass: boolean; backdrop: "off" | "acrylic" | "mica";
   clipsEnabled: boolean; clipSeconds: number; clipHotkey: string; clipDir: string; clipFps: number; clipHeight: number; clipQuality: "high" | "medium"; clipAudio: boolean; clipMonitor: number;
+  closeToTray: boolean; startWithWindows: boolean; notifications: boolean;
+  alerts: Alert[]; templates: Template[]; autoRepost: AutoRepost | null;
 };
+/** Tell me when a post like this goes up. */
+export type Alert = { id: string; titleId: string; titleName: string; scid: string; tags: string[]; minNeeds: number; language: string; keywords: string; enabled: boolean; created: number };
+/** A saved post you can put up again in one click. */
+export type Template = { id: string; name: string; titleId: string; titleName: string; description: string; need: number; tags: string[]; language: string };
+/** The hosted post Squadr puts back up when it ends before it fills. */
+export type AutoRepost = { sessionName: string; post: NewPost; titleName: string; count: number };
 export type Links = { discord: string; youtube: string; tiktok: string; github: string };
 export type Title = { titleId: string; name: string; scid: string; image: string; lastPlayed: string | null; devices: string[] };
 export type Post = {
@@ -63,7 +71,7 @@ export const api = {
   decline: (p: Post, index: number) => call<void>("lfg_decline", { scid: p.scid, sessionName: p.sessionName, index }),
 };
 
-export function on<T>(event: "auth" | "rta" | "tap" | "update-progress" | "clip" | "clips-status" | "clips-install", cb: (payload: T) => void): () => void {
+export function on<T>(event: "auth" | "rta" | "tap" | "update-progress" | "clip" | "clips-status" | "clips-install" | "clip-upload" | "nav" | "hidden-to-tray", cb: (payload: T) => void): () => void {
   if (!isTauri) return mockListen(event, cb as (p: unknown) => void);
   const un = listen<T>(event, (e) => cb(e.payload));
   return () => void un.then((f) => f());
@@ -96,4 +104,13 @@ export type UpdateInfo = { version: string; current: string; notes: string; date
 export const updates = {
   check: () => call<UpdateInfo | null | undefined>("update_check"),
   install: () => call<void>("update_install"),
+};
+
+// ---------------------------------------------------------------- desktop (tray, notifications, local data)
+export const desktop = {
+  notify: (title: string, body: string) => call<void>("notify", { title, body }),
+  badge: (count: number, summary: string) => call<void>("tray_badge", { count, summary }),
+  quit: () => call<void>("app_quit"),
+  dataGet: <T>(name: "players") => call<T | null>("data_get", { name }),
+  dataSet: (name: "players", value: unknown) => call<void>("data_set", { name, value }),
 };

@@ -1,4 +1,5 @@
-import { Circle, Clapperboard, Download, ExternalLink, FolderOpen, LoaderCircle, Play, RefreshCw, Settings as Cog, Trash2, X } from "lucide-react";
+import { Circle, Clapperboard, Download, ExternalLink, FolderOpen, LoaderCircle, Play, RefreshCw, Settings as Cog, Share2, Trash2, X } from "lucide-react";
+import { ShareClip } from "./ShareClip";
 import { useEffect, useState } from "react";
 import { openTab, saveSettings } from "../lib/actions";
 import { clipSrc, clipsApi, deleteClip, ENCODERS, fmtSize, installClipping, refreshClips, saveClipNow, type ClipFile } from "../lib/clips";
@@ -10,6 +11,7 @@ export function Clips() {
   const { clips, clipStatus, clipInstall, clipDir, settings } = useApp();
   const [playing, setPlaying] = useState<ClipFile | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
+  const [sharing, setSharing] = useState<ClipFile | null>(null);
   useEffect(() => {
     refreshClips();
   }, []);
@@ -114,6 +116,9 @@ export function Clips() {
                   </span>
                 </div>
                 <div className="clip-actions">
+                  <button className="icon-btn" title="Share with a friend or get a link" onClick={() => setSharing(c)}>
+                    <Share2 size={15} />
+                  </button>
                   <button className="icon-btn" title="Open in your video player" onClick={() => clipsApi.open(c.path)}>
                     <ExternalLink size={15} />
                   </button>
@@ -135,6 +140,7 @@ export function Clips() {
           </div>
         </div>
       </div>
+      {sharing && <ShareClip clip={sharing} onClose={() => setSharing(null)} />}
       {playing && (
         <div className="clip-player" onMouseDown={(e) => e.target === e.currentTarget && setPlaying(null)}>
           <div className="clip-player-box">

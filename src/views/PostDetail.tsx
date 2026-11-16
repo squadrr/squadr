@@ -1,7 +1,7 @@
 import { Check, Clock, ExternalLink, Headphones, LoaderCircle, LogOut, MessageSquare, Send, Trash2, UserMinus, Users, X } from "lucide-react";
 import { inviteToParty, messagePerson } from "../lib/social";
 import { useEffect, useState } from "react";
-import { Avatar, RepBadge, Slots } from "../components/common";
+import { Avatar, PlayerBadge, RepBadge, Slots } from "../components/common";
 import { applyTo, cancelPost, confirmMember, declineMember, loadDetail, withdraw } from "../lib/actions";
 import { api, type Detail, type Member, type Post } from "../lib/api";
 import { ago, tagLabel, when, xboxProfileUrl } from "../lib/format";
@@ -41,7 +41,7 @@ export function PostDetail({ handleId, fallback, known, onClose }: { handleId: s
         <Avatar person={host} gamertag={hostName} size={46} />
         <div style={{ minWidth: 0, flex: 1 }}>
           <div className="detail-name">
-            {hostName} <RepBadge rep={host?.rep} />
+            {hostName} <RepBadge rep={host?.rep} /> <PlayerBadge xuid={post.hostXuid} />
             {host?.isFriend && <span className="badge good">Friend</span>}
           </div>
           <div className="sub">{host?.presence || post.titleName}</div>
@@ -179,7 +179,7 @@ function Group({ title, people: list, empty, post, canManage, kind }: { title: s
                 <Avatar person={p} gamertag={m.gamertag} size={32} />
                 <div className="main-col">
                   <div className="name">
-                    {p?.gamertag ?? m.gamertag} <RepBadge rep={p?.rep} />
+                    {p?.gamertag ?? m.gamertag} <RepBadge rep={p?.rep} /> <PlayerBadge xuid={m.xuid} />
                   </div>
                   <div className="sub">{m.message ? `"${m.message}"` : p?.presence || (p?.gamerscore ? `${Number(p.gamerscore).toLocaleString()} G` : "")}</div>
                 </div>

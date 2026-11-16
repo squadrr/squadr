@@ -1,8 +1,8 @@
-import { Check, CirclePlus, Clapperboard, Gamepad2, Headphones, House, MessageSquare, Settings, Users, type LucideIcon } from "lucide-react";
+import { BellRing, Check, CirclePlus, Clapperboard, Contact, Gamepad2, Headphones, History, House, MessageSquare, Settings, ThumbsDown, ThumbsUp, Users, type LucideIcon } from "lucide-react";
 import { useState } from "react";
 import type { Person, Title } from "../lib/api";
 import { findTitle } from "../lib/actions";
-import { tabGame, type TabId } from "../lib/store";
+import { tabGame, useApp, type TabId } from "../lib/store";
 
 export const VIEWS: Record<string, { label: string; icon: LucideIcon; kbd?: string }> = {
   home: { label: "Home", icon: House },
@@ -11,6 +11,8 @@ export const VIEWS: Record<string, { label: string; icon: LucideIcon; kbd?: stri
   messages: { label: "Messages", icon: MessageSquare, kbd: "Ctrl+J" },
   friends: { label: "Friends & party", icon: Headphones, kbd: "Ctrl+P" },
   clips: { label: "Clips", icon: Clapperboard, kbd: "Ctrl+K" },
+  alerts: { label: "Alerts", icon: BellRing, kbd: "Ctrl+L" },
+  players: { label: "Players", icon: Contact, kbd: "Ctrl+U" },
   settings: { label: "Settings", icon: Settings, kbd: "Ctrl+," },
 };
 
@@ -81,4 +83,22 @@ export function Slots({ confirmed, target }: { confirmed: number; target: number
 export function RepBadge({ rep }: { rep?: string }) {
   if (!rep || rep === "GoodPlayer") return null;
   return <span className="badge warn">{rep === "AvoidMe" ? "Avoid me" : "Needs work"}</span>;
+}
+
+/** "Played 3×" / "Rated down" for someone you've grouped with before. */
+export function PlayerBadge({ xuid }: { xuid: string }) {
+  const p = useApp().players[xuid];
+  if (!p) return null;
+  const tip = [`You've played together ${p.times === 1 ? "once" : `${p.times} times`}`, p.lastGame, p.note].filter(Boolean).join(" · ");
+  if (p.rating === -1)
+    return (
+      <span className="badge bad" title={tip}>
+        <ThumbsDown size={11} /> Rated down
+      </span>
+    );
+  return (
+    <span className={`badge ${p.rating === 1 ? "good" : ""}`} title={tip}>
+      {p.rating === 1 ? <ThumbsUp size={11} /> : <History size={11} />} Played {p.times}×
+    </span>
+  );
 }

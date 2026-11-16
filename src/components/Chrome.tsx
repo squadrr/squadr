@@ -7,11 +7,11 @@ import { useUpdate } from "../lib/update";
 import { Avatar, GameArt, tabInfo, VIEWS } from "./common";
 
 export function ActivityBar() {
-  const { active, auth, people, mine, inbox, party, clipStatus } = useApp();
+  const { active, auth, people, mine, inbox, party, clipStatus, alertNew } = useApp();
   const me = auth ? people[auth.xuid] : null;
   const pending = (mine ?? []).filter((m) => m.tracked.role === "host").reduce((n, m) => n + (m.detail?.members.filter((x) => x.role === "applicant").length ?? 0), 0);
   const unread = (inbox ?? []).filter((c) => c.unread && !c.muted).length;
-  const top = ["home", "mine", "messages", "friends", "clips", "create"] as const;
+  const top = ["home", "mine", "messages", "friends", "alerts", "players", "clips", "create"] as const;
   return (
     <nav className="activity">
       {top.map((v) => {
@@ -21,6 +21,7 @@ export function ActivityBar() {
             <Icon size={20} />
             {v === "mine" && pending > 0 && <span className="act-badge">{pending}</span>}
             {v === "messages" && unread > 0 && <span className="act-badge">{unread > 99 ? "99+" : unread}</span>}
+            {v === "alerts" && alertNew.length > 0 && <span className="act-badge">{alertNew.length > 99 ? "99+" : alertNew.length}</span>}
             {v === "friends" && party && <span className="act-dot" title="You're in a party" />}
             {v === "clips" && clipStatus?.running && <span className="act-dot rec" title="Recording your last moments" />}
           </button>
@@ -52,7 +53,7 @@ export function Tabs() {
     window.addEventListener("mousedown", close);
     return () => window.removeEventListener("mousedown", close);
   }, []);
-  const closedViews = (["home", "mine", "messages", "friends", "clips", "create", "settings"] as const).filter((v) => !tabs.includes(v));
+  const closedViews = (["home", "mine", "messages", "friends", "alerts", "players", "clips", "create", "settings"] as const).filter((v) => !tabs.includes(v));
   const closedGames = (games ?? []).filter((g) => !tabs.includes(`game:${g.titleId}`)).slice(0, 8);
   return (
     <div className="tabs">

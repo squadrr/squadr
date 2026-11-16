@@ -1,7 +1,8 @@
-import { CirclePlus, Clock, LoaderCircle, RefreshCw, SlidersHorizontal, X } from "lucide-react";
+import { BellPlus, BellRing, CirclePlus, Clock, LoaderCircle, RefreshCw, SlidersHorizontal, X } from "lucide-react";
 import { useEffect, useMemo } from "react";
-import { Avatar, GameArt, RepBadge, Slots } from "../components/common";
-import { createFor, findTitle, refreshBrowse, selectPost, setFilters, toggleTagFilter } from "../lib/actions";
+import { Avatar, GameArt, PlayerBadge, RepBadge, Slots } from "../components/common";
+import { alertFromBrowse } from "./Alerts";
+import { createFor, findTitle, openTab, refreshBrowse, selectPost, setFilters, toggleTagFilter } from "../lib/actions";
 import type { Post } from "../lib/api";
 import { ago, LANGUAGES, tagLabel, when } from "../lib/format";
 import { defaultFilters, useApp } from "../lib/store";
@@ -31,6 +32,7 @@ export function Browse({ titleId }: { titleId: string }) {
   const selected = b?.selected ?? null;
   const selPost = posts?.find((p) => p.handleId === selected);
   const pulse = settings?.layout === "pulse";
+  const hasAlert = (settings?.alerts ?? []).some((a) => a.titleId === titleId);
 
   return (
     <div className="view">
@@ -63,6 +65,15 @@ export function Browse({ titleId }: { titleId: string }) {
           </select>
         </label>
         <div className="grow" />
+        {hasAlert ? (
+          <button className="tool" onClick={() => openTab("alerts")} title="You have an alert for this game">
+            <BellRing size={15} /> Alert on
+          </button>
+        ) : (
+          <button className="tool" onClick={() => alertFromBrowse(titleId)} title="Get a ping when a new post matching these filters goes up">
+            <BellPlus size={15} /> Alert me
+          </button>
+        )}
         <button className="btn-white" onClick={() => createFor(titleId)}>
           <CirclePlus size={14} /> Create post
         </button>
@@ -137,6 +148,7 @@ function PostCard({ p, active, requested, host, onClick }: { p: Post; active: bo
           <b>{name}</b>
           <RepBadge rep={host?.rep} />
           {host?.isFriend && <span className="badge good">Friend</span>}
+          <PlayerBadge xuid={p.hostXuid} />
           <span className="when">{p.scheduled ? <><Clock size={11} /> {when(p.scheduled)}</> : ago(p.posted)}</span>
         </div>
         <div className="post-desc">{p.description || <i style={{ color: "var(--faint)" }}>No description</i>}</div>

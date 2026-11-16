@@ -1,6 +1,6 @@
 // Messages, friends and party actions.
 import { isSpam } from "./spam";
-import { chime, mergePeople, openTab, toast } from "./actions";
+import { alertUser, mergePeople, openTab, toast } from "./actions";
 import { errText, social, type Conversation, type Message, type ThreadRef } from "./api";
 import { get, set, threadKey, type ThreadState } from "./store";
 
@@ -36,8 +36,7 @@ export async function loadInbox(notify = true) {
         const key = threadKey(convRef(c));
         if (key === openKey) continue; // you're looking at it; the thread refresh shows it
         const who = s.people[c.lastSender]?.gamertag ?? people.find((p) => p.xuid === c.lastSender)?.gamertag ?? "New message";
-        toast("info", c.kind === "group" ? `${who} in ${c.title || "a group"}` : who, c.lastText.slice(0, 140));
-        chime();
+        alertUser("info", c.kind === "group" ? `${who} in ${c.title || "a group"}` : who, c.lastText.slice(0, 140));
       }
     }
     lastSeen = new Map([...conversations, ...requests].map((c) => [c.id, c.lastMessageId]));

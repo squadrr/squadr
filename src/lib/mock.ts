@@ -49,7 +49,7 @@ function detailFor(p: Post): Detail {
   return { post: p, members: [host, ...others], myRole: p.handleId === "mine-h" ? "host" : null };
 }
 
-let settings: Settings = { showSidePanel: true, showStatusBar: true, language: "en", pinned: ["267695549"], extraTitles: [], sound: true, consoleOnly: true, clipsEnabled: params.has("clips"), clipSeconds: 30, clipHotkey: "Alt+F10", clipDir: "", clipFps: 60, clipHeight: 1080, clipQuality: "high", clipAudio: true, clipMonitor: 0, glass: params.has("glass"), backdrop: (params.get("backdrop") ?? "off") as Settings["backdrop"], layout: (new URLSearchParams(location.search).get("layout") === "pulse" ? "pulse" : "classic") as Settings["layout"], onboarded: !new URLSearchParams(location.search).has("welcome") };
+let settings: Settings = { showSidePanel: true, showStatusBar: true, language: "en", pinned: ["267695549"], extraTitles: [], sound: true, consoleOnly: true, clipsEnabled: params.has("clips"), clipSeconds: 30, clipHotkey: "Alt+F10", clipDir: "", clipFps: 60, clipHeight: 1080, clipQuality: "high", clipAudio: true, clipMonitor: 0, closeToTray: true, startWithWindows: false, notifications: true, alerts: [], templates: [], autoRepost: null, glass: params.has("glass"), backdrop: (params.get("backdrop") ?? "off") as Settings["backdrop"], layout: (new URLSearchParams(location.search).get("layout") === "pulse" ? "pulse" : "classic") as Settings["layout"], onboarded: !new URLSearchParams(location.search).has("welcome") };
 
 const wait = (ms = 250) => new Promise((r) => setTimeout(r, ms));
 
@@ -134,6 +134,14 @@ export async function mockCall<T>(cmd: string, args: Record<string, unknown> = {
       return r(people.map((p, i) => ({ person: p, state: i < 6 ? "Online" : "Offline", favorite: i === 1, inParty: i === 1 || i === 4, partyJoinable: i === 1, joinableGames: i === 2 ? ["267695549"] : [], device: i % 2 ? "Xbox Series X|S" : "PC" })));
     case "party_mine":
       return r(params.has("noparty") ? null : { scid: "p", name: "party1", joinRestriction: "followed", titleId: "", members: [{ xuid: ME, gamertag: "NovaPilot", index: 0 }, { xuid: people[1].xuid, gamertag: people[1].gamertag, index: 1 }] });
+    case "data_get":
+      return r(args.name === "players" ? mockPlayers() : null);
+    case "clips_upload":
+      for (let i = 1; i <= 5; i++) {
+        await wait(200);
+        (listeners["clip-upload"] ?? []).forEach((f) => f({ path: args.path, sent: i * 2e6, total: 1e7 }));
+      }
+      return r("https://files.catbox.moe/abc123.mp4");
     case "party_invite":
       return r((args.xuids as string[]).length);
     default:
@@ -146,4 +154,14 @@ export function mockListen(event: string, cb: (p: unknown) => void) {
   return () => {
     listeners[event] = listeners[event].filter((f) => f !== cb);
   };
+}
+
+function mockPlayers() {
+  const now = Date.now();
+  return Object.fromEntries(
+    people.slice(1, 7).map((p, i) => [
+      p.xuid,
+      { xuid: p.xuid, gamertag: p.gamertag, gamerpic: p.gamerpic, lastSeen: now - i * 7_200_000, lastGame: games[i % games.length].name, games: [games[i % games.length].name], times: 4 - (i % 4), lastSession: `s${i}`, rating: i === 0 ? 1 : i === 3 ? -1 : 0, note: i === 0 ? "Great callouts, plat 3" : "" },
+    ]),
+  );
 }

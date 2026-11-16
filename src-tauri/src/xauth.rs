@@ -85,7 +85,7 @@ impl Auth {
     }
 
     pub fn status(&self) -> AuthStatus {
-        let s = self.st.lock().unwrap();
+        let s = self.st.lock().unwrap_or_else(|e| e.into_inner());
         let x = s.xsts.clone();
         AuthStatus {
             signed_in: !s.msa_refresh.is_empty() && x.is_some(),
@@ -99,7 +99,7 @@ impl Auth {
     }
 
     pub fn sign_out(&self) {
-        *self.st.lock().unwrap() = Saved::default();
+        *self.st.lock().unwrap_or_else(|e| e.into_inner()) = Saved::default();
         let _ = std::fs::remove_file(self.dir.join(FILE));
     }
 
@@ -128,7 +128,7 @@ impl Auth {
         };
         if let Some(tok) = v["access_token"].as_str() {
             {
-                let mut s = self.st.lock().unwrap();
+                let mut s = self.st.lock().unwrap_or_else(|e| e.into_inner());
                 *s = Saved { key: s.key.clone(), ..Default::default() };
                 s.msa_access = tok.to_string();
                 s.msa_refresh = v["refresh_token"].as_str().unwrap_or_default().to_string();
@@ -150,7 +150,7 @@ impl Auth {
 
     /// A valid XSTS token, refreshing whatever has expired.
     pub fn xsts(&self) -> Result<Xsts, String> {
-        if let Some(x) = self.st.lock().unwrap().xsts.clone() {
+        if let Some(x) = self.st.lock().unwrap_or_else(|e| e.into_inner()).xsts.clone() {
             if x.exp > now_ms() + 5 * 60_000 {
                 return Ok(x);
             }
@@ -160,8 +160,8 @@ impl Auth {
 
     /// Fetch a fresh XSTS token (after a 401, or when the cached one is close to expiry).
     pub fn xsts_force(&self) -> Result<Xsts, String> {
-        let _g = self.refresh_lock.lock().unwrap();
-        let mut s = self.st.lock().unwrap().clone();
+        let _g = self.refresh_lock.lock().unwrap_or_else(|e| e.into_inner());
+        let mut s = self.st.lock().unwrap_or_else(|e| e.into_inner()).clone();
         if s.msa_refresh.is_empty() {
             return Err("Not signed in".into());
         }
@@ -216,7 +216,7 @@ impl Auth {
         };
         s.xsts = Some(x.clone());
         self.persist(&s);
-        *self.st.lock().unwrap() = s;
+        *self.st.lock().unwrap_or_else(|e| e.into_inner()) = s;
         Ok(x)
     }
 

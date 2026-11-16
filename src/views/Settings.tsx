@@ -77,6 +77,31 @@ export function SettingsView() {
             </div>
           </div>
 
+          <div className="group-title">Background</div>
+          <div className="form-card">
+            <div className="form-row">
+              <div className="lbl">
+                <b>Keep running in the tray</b>
+                <span>Closing the window hides Squadr next to the clock, so your posts, alerts and auto-repost keep working. Quit from the tray icon or File › Exit.</span>
+              </div>
+              <Switch on={settings.closeToTray} onClick={() => saveSettings({ closeToTray: !settings.closeToTray })} />
+            </div>
+            <div className="form-row">
+              <div className="lbl">
+                <b>Start with Windows</b>
+                <span>Open Squadr quietly in the tray when you sign in to your PC.</span>
+              </div>
+              <Switch on={settings.startWithWindows} onClick={() => saveSettings({ startWithWindows: !settings.startWithWindows })} />
+            </div>
+            <div className="form-row">
+              <div className="lbl">
+                <b>Windows notifications</b>
+                <span>When Squadr isn't in front: join requests, getting picked, new messages, alert matches and reposts.</span>
+              </div>
+              <Switch on={settings.notifications} onClick={() => saveSettings({ notifications: !settings.notifications })} />
+            </div>
+          </div>
+
           <div className="group-title">Interface</div>
           <div className="form-card">
             <div className="form-row col">

@@ -1,15 +1,18 @@
-import { Info, LoaderCircle, Minus, Plus, Radio, X } from "lucide-react";
+import { Bookmark, BookmarkPlus, Info, LoaderCircle, Minus, Plus, Radio, X } from "lucide-react";
 import { useState } from "react";
-import { GameArt } from "../components/common";
-import { createPost, findTitle } from "../lib/actions";
+import { GameArt, Switch } from "../components/common";
+import { createPost, deleteTemplate, fillFromTemplate, findTitle, postTemplate, saveTemplate } from "../lib/actions";
 import { LANGUAGES, SYSTEM_TAGS, tagLabel } from "../lib/format";
 import { set, useApp, type Draft } from "../lib/store";
 
 const MAX_TAGS = 10;
 
 export function Create() {
-  const { draft, games, busy, mine } = useApp();
+  const { draft, games, busy, mine, settings } = useApp();
   const [custom, setCustom] = useState("");
+  const [naming, setNaming] = useState<string | null>(null);
+  const templates = settings?.templates ?? [];
+  const suggestName = () => `${t?.name ?? ""} · ${draft.description.trim().split(/\s+/).slice(0, 3).join(" ")}`.slice(0, 40);
   const t = findTitle(draft.titleId);
   const patch = (p: Partial<Draft>) => set((s) => ({ draft: { ...s.draft, ...p } }));
   const hosting = (mine ?? []).find((m) => m.tracked.role === "host" && m.detail);
@@ -29,6 +32,26 @@ export function Create() {
           <b>New post</b>
         </div>
         <div className="grow" />
+        {naming === null ? (
+          <button className="tool" disabled={!t || !draft.description.trim()} onClick={() => setNaming(suggestName())} title="Save this post to put it up again in one click">
+            <BookmarkPlus size={15} /> Save as template
+          </button>
+        ) : (
+          <form
+            className="tpl-name"
+            onSubmit={(e) => {
+              e.preventDefault();
+              saveTemplate(naming);
+              setNaming(null);
+            }}
+          >
+            <input autoFocus className="field" value={naming} maxLength={40} onChange={(e) => setNaming(e.target.value)} onKeyDown={(e) => e.key === "Escape" && setNaming(null)} placeholder="Template name" />
+            <button className="mini-btn good">Save</button>
+            <button type="button" className="icon-btn" onClick={() => setNaming(null)} aria-label="Cancel">
+              <X size={14} />
+            </button>
+          </form>
+        )}
         <button className="btn-white" disabled={busy.create || !t || !draft.description.trim()} onClick={createPost}>
           {busy.create ? <LoaderCircle size={14} className="spin" /> : <Radio size={14} />} Post
         </button>
@@ -41,6 +64,33 @@ export function Create() {
               <p>Your post shows up in LFG for everyone on Xbox, PC and the Xbox app.</p>
             </div>
           </div>
+
+          {templates.length > 0 && (
+            <>
+              <div className="group-title">Templates</div>
+              <div className="tpl-list">
+                {templates.map((tpl) => (
+                  <div key={tpl.id} className="tpl">
+                    <button className="tpl-main" onClick={() => fillFromTemplate(tpl)} title={`Fill in: ${tpl.description}`}>
+                      <Bookmark size={14} />
+                      <span className="txt">
+                        <b>{tpl.name}</b>
+                        <small>
+                          {tpl.titleName} · needs {tpl.need}
+                        </small>
+                      </span>
+                    </button>
+                    <button className="mini-btn good" disabled={busy.create} onClick={() => postTemplate(tpl)} title="Post it now">
+                      <Radio size={13} /> Post
+                    </button>
+                    <button className="icon-btn" onClick={() => deleteTemplate(tpl.id)} title="Delete template">
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
 
           {hosting && (
             <div className="banner">
@@ -96,6 +146,13 @@ export function Create() {
                   <Plus size={15} />
                 </button>
               </div>
+            </div>
+            <div className="form-row">
+              <div className="lbl">
+                <b>Repost automatically</b>
+                <span>If your post ends before it fills, Squadr puts it back up. Stops when it fills or you cancel it.</span>
+              </div>
+              <Switch on={draft.repost} onClick={() => patch({ repost: !draft.repost })} />
             </div>
             <div className="form-row">
               <div className="lbl">

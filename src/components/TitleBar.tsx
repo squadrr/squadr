@@ -2,7 +2,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { CirclePlus, Minus, PanelBottom, PanelLeft, Square, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createFor, loadGames, openTab, refreshBrowse, refreshMine, saveSettings, signOut } from "../lib/actions";
-import { api, isTauri } from "../lib/api";
+import { api, desktop, isTauri } from "../lib/api";
 import { get, tabGame, useApp } from "../lib/store";
 import { Logo } from "./common";
 
@@ -51,7 +51,7 @@ export function TitleBar({ minimal }: { minimal?: boolean }) {
       { label: "Refresh", kbd: "F5", run: refreshCurrent },
       "sep",
       { label: "Sign out", run: signOut },
-      { label: "Exit", run: () => win()?.close() },
+      { label: "Exit", run: () => (isTauri ? desktop.quit() : win()?.close()) },
     ],
     View: [
       { label: "Home", run: () => openTab("home") },

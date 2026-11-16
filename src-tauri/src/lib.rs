@@ -1,5 +1,6 @@
 mod clips;
 mod crash;
+mod desktop;
 mod lfg;
 mod messaging;
 mod party;
@@ -78,14 +79,14 @@ impl App {
     }
 
     fn track(&self, t: Tracked) {
-        let mut v = self.tracked.lock().unwrap();
+        let mut v = self.tracked.lock().unwrap_or_else(|e| e.into_inner());
         v.retain(|x| x.session_name != t.session_name);
         v.push(t);
         let _ = save(&self.dir, TRACKED, &*v);
     }
 
     fn untrack(&self, session_name: &str) {
-        let mut v = self.tracked.lock().unwrap();
+        let mut v = self.tracked.lock().unwrap_or_else(|e| e.into_inner());
         v.retain(|x| x.session_name != session_name);
         let _ = save(&self.dir, TRACKED, &*v);
     }
@@ -94,20 +95,20 @@ impl App {
     fn people_for(&self, xuids: &[String]) -> Vec<Person> {
         let now = now_ms();
         let mut missing: Vec<String> = {
-            let cache = self.people.lock().unwrap();
+            let cache = self.people.lock().unwrap_or_else(|e| e.into_inner());
             xuids.iter().filter(|x| cache.get(*x).map_or(true, |(_, t)| now - t > 600_000)).cloned().collect()
         };
         missing.sort();
         missing.dedup();
         if !missing.is_empty() {
             if let Ok(found) = lfg::people(&self.xbl, &missing) {
-                let mut cache = self.people.lock().unwrap();
+                let mut cache = self.people.lock().unwrap_or_else(|e| e.into_inner());
                 for p in found {
                     cache.insert(p.xuid.clone(), (p, now));
                 }
             }
         }
-        let cache = self.people.lock().unwrap();
+        let cache = self.people.lock().unwrap_or_else(|e| e.into_inner());
         let mut seen = std::collections::HashSet::new();
         xuids.iter().filter(|x| seen.insert(x.to_string())).filter_map(|x| cache.get(x).map(|(p, _)| p.clone())).collect()
     }
@@ -122,7 +123,7 @@ impl App {
                 let handle = handle.clone();
                 std::thread::spawn(move || {
                     let Ok(me) = app.me() else { return };
-                    let list = app.tracked.lock().unwrap().clone();
+                    let list = app.tracked.lock().unwrap_or_else(|e| e.into_inner()).clone();
                     let mut changed = false;
                     for t in list {
                         if let Err(e) = lfg::keep_active(&app.xbl, &t.scid, &t.session_name, &me, &cid) {
@@ -165,7 +166,7 @@ async fn auth_begin(s: St<'_>, handle: AppHandle) -> Result<DeviceCode, String> 
     })
     .await?;
     let run_id = {
-        let mut g = app.signing_in.lock().unwrap();
+        let mut g = app.signing_in.lock().unwrap_or_else(|e| e.into_inner());
         *g += 1;
         *g
     };
@@ -174,7 +175,7 @@ async fn auth_begin(s: St<'_>, handle: AppHandle) -> Result<DeviceCode, String> 
         let until = now_ms() + code.expires_in * 1000;
         while now_ms() < until {
             std::thread::sleep(Duration::from_secs(code.interval.max(2)));
-            if *app.signing_in.lock().unwrap() != run_id {
+            if *app.signing_in.lock().unwrap_or_else(|e| e.into_inner()) != run_id {
                 return; // a newer sign-in attempt replaced this one
             }
             match app.auth.poll(&code) {
@@ -197,7 +198,7 @@ async fn auth_begin(s: St<'_>, handle: AppHandle) -> Result<DeviceCode, String> 
 
 #[tauri::command]
 fn auth_cancel(s: St) {
-    *s.signing_in.lock().unwrap() += 1;
+    *s.signing_in.lock().unwrap_or_else(|e| e.into_inner()) += 1;
 }
 
 #[tauri::command]
@@ -207,7 +208,7 @@ async fn auth_sign_out(s: St<'_>) -> Result<(), String> {
         leave_everything(&app);
         app.rta.stop();
         app.auth.sign_out();
-        app.people.lock().unwrap().clear();
+        app.people.lock().unwrap_or_else(|e| e.into_inner()).clear();
         Ok(())
     })
     .await
@@ -255,17 +256,20 @@ async fn links_get() -> Result<serde_json::Value, String> {
 
 #[tauri::command]
 fn settings_get(s: St) -> Settings {
-    s.settings.lock().unwrap().clone()
+    s.settings.lock().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
 #[tauri::command]
 fn settings_set(s: St, app: AppHandle, settings: Settings) -> Result<Settings, String> {
-    let old = s.settings.lock().unwrap().clone();
+    let old = s.settings.lock().unwrap_or_else(|e| e.into_inner()).clone();
     if old.backdrop != settings.backdrop {
         apply_backdrop(&app, &settings.backdrop);
     }
+    if old.start_with_windows != settings.start_with_windows {
+        desktop::set_autostart(settings.start_with_windows)?;
+    }
     save(&s.dir, SETTINGS, &settings)?;
-    *s.settings.lock().unwrap() = settings.clone();
+    *s.settings.lock().unwrap_or_else(|e| e.into_inner()) = settings.clone();
     if clip_settings_changed(&old, &settings) {
         let (state, app) = (s.inner().clone(), app.clone());
         std::thread::spawn(move || apply_clips(&app, &state));
@@ -301,7 +305,7 @@ fn clips_dir_for(app: &AppHandle, s: &Settings) -> PathBuf {
 /// Start/stop the replay buffer and (re)register the save hotkey to match the settings.
 fn apply_clips(app: &AppHandle, state: &Arc<App>) {
     use tauri_plugin_global_shortcut::GlobalShortcutExt;
-    let s = state.settings.lock().unwrap().clone();
+    let s = state.settings.lock().unwrap_or_else(|e| e.into_inner()).clone();
     let gs = app.global_shortcut();
     let _ = gs.unregister_all();
     let dir = clips_dir_for(app, &s);
@@ -331,7 +335,7 @@ fn apply_clips(app: &AppHandle, state: &Arc<App>) {
 /// Save a clip and tell the window (used by the hotkey and the Save button).
 fn save_clip(app: &AppHandle) -> Result<String, String> {
     let state = app.state::<Arc<App>>().inner().clone();
-    let dir = clips_dir_for(app, &state.settings.lock().unwrap().clone());
+    let dir = clips_dir_for(app, &state.settings.lock().unwrap_or_else(|e| e.into_inner()).clone());
     let res = state.clipper.save(&dir).map(|p| p.to_string_lossy().to_string());
     let _ = app.emit(
         "clip",
@@ -369,17 +373,17 @@ async fn clips_save(app: AppHandle) -> Result<String, String> {
 
 #[tauri::command]
 fn clips_dir(s: St, app: AppHandle) -> String {
-    clips_dir_for(&app, &s.settings.lock().unwrap()).to_string_lossy().to_string()
+    clips_dir_for(&app, &s.settings.lock().unwrap_or_else(|e| e.into_inner())).to_string_lossy().to_string()
 }
 
 #[tauri::command]
 fn clips_list(s: St, app: AppHandle) -> Vec<clips::ClipFile> {
-    clips::list(&clips_dir_for(&app, &s.settings.lock().unwrap()))
+    clips::list(&clips_dir_for(&app, &s.settings.lock().unwrap_or_else(|e| e.into_inner())))
 }
 
 /// Only .mp4 files directly inside the clips folder can be opened, revealed or deleted.
 fn clip_path(s: &St, app: &AppHandle, path: &str) -> Result<PathBuf, String> {
-    let dir = clips_dir_for(app, &s.settings.lock().unwrap());
+    let dir = clips_dir_for(app, &s.settings.lock().unwrap_or_else(|e| e.into_inner()));
     let p = PathBuf::from(path);
     let ok = p.parent().map(|d| d == dir).unwrap_or(false) && p.extension().map(|e| e.eq_ignore_ascii_case("mp4")).unwrap_or(false) && p.exists();
     if ok {
@@ -407,9 +411,21 @@ fn clips_delete(s: St, app: AppHandle, path: String) -> Result<(), String> {
     std::fs::remove_file(p).map_err(|e| e.to_string())
 }
 
+/// Upload a clip and return a link to share it. Progress arrives as "clip-upload" events.
+#[tauri::command]
+async fn clips_upload(s: St<'_>, app: AppHandle, path: String, temporary: bool) -> Result<String, String> {
+    let p = clip_path(&s, &app, &path)?;
+    blocking(move || {
+        desktop::upload_clip(&p, temporary, |sent, total| {
+            let _ = app.emit("clip-upload", json!({ "path": path, "sent": sent, "total": total }));
+        })
+    })
+    .await
+}
+
 #[tauri::command]
 fn clips_open_folder(s: St, app: AppHandle) -> Result<(), String> {
-    let dir = clips_dir_for(&app, &s.settings.lock().unwrap());
+    let dir = clips_dir_for(&app, &s.settings.lock().unwrap_or_else(|e| e.into_inner()));
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     std::process::Command::new("explorer").arg(dir).spawn().map(|_| ()).map_err(|e| e.to_string())
 }
@@ -427,6 +443,47 @@ async fn clips_pick_folder(app: AppHandle) -> Result<Option<String>, String> {
             .map(|p| p.to_string_lossy().to_string()))
     })
     .await
+}
+
+// ---------------------------------------------------------------- desktop
+
+/// A Windows notification (the frontend decides when, e.g. only while Squadr isn't focused).
+#[tauri::command]
+fn notify(s: St, app: AppHandle, title: String, body: String) {
+    if s.settings.lock().unwrap_or_else(|e| e.into_inner()).notifications {
+        desktop::notify(&app, &title, &body);
+    }
+}
+
+/// Red dot on the tray icon and taskbar button while `count` things wait for you.
+#[tauri::command]
+fn tray_badge(app: AppHandle, count: u32, summary: String) {
+    desktop::set_badge(&app, count, &summary);
+}
+
+/// Really quit (the close button only hides to the tray when that's on).
+#[tauri::command]
+fn app_quit(app: AppHandle) {
+    app.exit(0);
+}
+
+/// Small JSON files the frontend keeps, like your recent players.
+const DATA_FILES: [&str; 1] = ["players"];
+
+#[tauri::command]
+fn data_get(s: St, name: String) -> Result<serde_json::Value, String> {
+    if !DATA_FILES.contains(&name.as_str()) {
+        return Err("unknown data file".into());
+    }
+    Ok(load(&s.dir, &format!("{name}.json")))
+}
+
+#[tauri::command]
+fn data_set(s: St, name: String, value: serde_json::Value) -> Result<(), String> {
+    if !DATA_FILES.contains(&name.as_str()) {
+        return Err("unknown data file".into());
+    }
+    save(&s.dir, &format!("{name}.json"), &value)
 }
 
 // ---------------------------------------------------------------- games
@@ -477,7 +534,7 @@ async fn games_list(s: St<'_>, resolve: Option<bool>) -> Result<Vec<Title>, Stri
         let resolve = resolve.unwrap_or(false);
         let mut list = lfg::title_history(&app.xbl, &me)?;
         let (extra_ids, console_only) = {
-            let st = app.settings.lock().unwrap();
+            let st = app.settings.lock().unwrap_or_else(|e| e.into_inner());
             (st.extra_titles.clone(), st.console_only)
         };
         let extra: Vec<String> = extra_ids.into_iter().filter(|id| !list.iter().any(|t| &t.title_id == id)).collect();
@@ -529,7 +586,7 @@ async fn games_list(s: St<'_>, resolve: Option<bool>) -> Result<Vec<Title>, Stri
 #[tauri::command]
 async fn games_search(s: St<'_>, query: String) -> Result<Vec<Title>, String> {
     let app = s.inner().clone();
-    let console_only = app.settings.lock().unwrap().console_only;
+    let console_only = app.settings.lock().unwrap_or_else(|e| e.into_inner()).console_only;
     blocking(move || {
         let mut res = lfg::search_games(&app.xbl, query.trim())?;
         if console_only {
@@ -619,7 +676,7 @@ async fn lfg_mine(s: St<'_>) -> Result<MineResult, String> {
     let app = s.inner().clone();
     blocking(move || {
         let me = app.me()?;
-        let list = app.tracked.lock().unwrap().clone();
+        let list = app.tracked.lock().unwrap_or_else(|e| e.into_inner()).clone();
         let mut items = vec![];
         let mut xuids = vec![];
         for t in list {
@@ -656,7 +713,7 @@ async fn lfg_create(s: St<'_>, post: NewPost, title_name: String) -> Result<Post
             return Err("Write a short description so people know what you're looking for.".into());
         }
         // One hosted post at a time, like on console.
-        let hosting: Vec<Tracked> = app.tracked.lock().unwrap().iter().filter(|t| t.role == "host").cloned().collect();
+        let hosting: Vec<Tracked> = app.tracked.lock().unwrap_or_else(|e| e.into_inner()).iter().filter(|t| t.role == "host").cloned().collect();
         for t in hosting {
             let _ = lfg::cancel(&app.xbl, &t.scid, &t.session_name, &t.handle_id);
             app.untrack(&t.session_name);
@@ -840,7 +897,7 @@ async fn friends_list(s: St<'_>) -> Result<Vec<party::Friend>, String> {
     blocking(move || {
         let list = party::friends(&app.xbl)?;
         let now = now_ms();
-        let mut cache = app.people.lock().unwrap();
+        let mut cache = app.people.lock().unwrap_or_else(|e| e.into_inner());
         for f in &list {
             cache.insert(f.person.xuid.clone(), (f.person.clone(), now));
         }
@@ -943,11 +1000,11 @@ async fn update_install(app: AppHandle, s: St<'_>) -> Result<(), String> {
 
 /// On exit / sign-out: end hosted posts and withdraw applications instead of leaving them to time out.
 fn leave_everything(app: &App) {
-    let list = app.tracked.lock().unwrap().clone();
+    let list = app.tracked.lock().unwrap_or_else(|e| e.into_inner()).clone();
     for t in &list {
         let _ = if t.role == "host" { lfg::cancel(&app.xbl, &t.scid, &t.session_name, &t.handle_id) } else { lfg::leave(&app.xbl, &t.scid, &t.session_name) };
     }
-    app.tracked.lock().unwrap().clear();
+    app.tracked.lock().unwrap_or_else(|e| e.into_inner()).clear();
     let _ = save(&app.dir, TRACKED, &Vec::<Tracked>::new());
 }
 
@@ -967,12 +1024,13 @@ fn apply_backdrop(app: &AppHandle, mode: &str) {
 pub fn run() {
     crash::install();
     let app = tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            if let Some(w) = app.get_webview_window("main") {
-                let _ = w.unminimize();
-                let _ = w.set_focus();
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            // a second launch from the startup entry shouldn't pop the window
+            if !args.iter().any(|a| a == desktop::TRAY_FLAG) {
+                desktop::show_main(app);
             }
         }))
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(
@@ -1002,7 +1060,7 @@ pub fn run() {
                 clipper: Arc::new(clips::Clipper::new(&dir)),
                 dir,
             });
-            apply_backdrop(app.handle(), &state.settings.lock().unwrap().backdrop.clone());
+            apply_backdrop(app.handle(), &state.settings.lock().unwrap_or_else(|e| e.into_inner()).backdrop.clone());
             app.manage(state.clone());
             if state.auth.status().signed_in {
                 state.start_rta(app.handle().clone());
@@ -1011,7 +1069,31 @@ pub fn run() {
                 let (state, app) = (state.clone(), app.handle().clone());
                 std::thread::spawn(move || apply_clips(&app, &state));
             }
+            if let Err(e) = desktop::create_tray(app.handle()) {
+                eprintln!("tray: {e}");
+            }
+            let settings = state.settings.lock().unwrap_or_else(|e| e.into_inner()).clone();
+            if settings.start_with_windows {
+                // keep the startup entry pointing at this copy of Squadr
+                let _ = desktop::set_autostart(true);
+            }
+            // The startup entry starts Squadr hidden in the tray.
+            let to_tray = settings.close_to_tray && std::env::args().any(|a| a == desktop::TRAY_FLAG);
+            if !to_tray {
+                desktop::show_main(app.handle());
+            }
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let app = window.app_handle();
+                let to_tray = app.try_state::<Arc<App>>().is_some_and(|s| s.settings.lock().unwrap_or_else(|e| e.into_inner()).close_to_tray);
+                if to_tray {
+                    api.prevent_close();
+                    let _ = window.hide();
+                    let _ = app.emit("hidden-to-tray", ());
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             auth_status,
@@ -1031,6 +1113,12 @@ pub fn run() {
             clips_reveal,
             clips_delete,
             clips_open_folder,
+            clips_upload,
+            notify,
+            tray_badge,
+            app_quit,
+            data_get,
+            data_set,
             clips_pick_folder,
             games_list,
             games_search,

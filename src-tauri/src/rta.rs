@@ -33,13 +33,13 @@ impl Rta {
     }
 
     pub fn connection(&self) -> Option<String> {
-        self.connection_id.lock().unwrap().clone()
+        self.connection_id.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     pub fn stop(&self) {
         self.run.store(false, Ordering::SeqCst);
         self.generation.fetch_add(1, Ordering::SeqCst);
-        *self.connection_id.lock().unwrap() = None;
+        *self.connection_id.lock().unwrap_or_else(|e| e.into_inner()) = None;
     }
 
     /// Start (or restart) the connection loop in a background thread.
@@ -52,7 +52,7 @@ impl Rta {
             while me.run.load(Ordering::SeqCst) && me.generation.load(Ordering::SeqCst) == gen {
                 let started = Instant::now();
                 let why = me.session(&auth, &on, gen).err().unwrap_or_else(|| "closed".into());
-                *me.connection_id.lock().unwrap() = None;
+                *me.connection_id.lock().unwrap_or_else(|e| e.into_inner()) = None;
                 if me.generation.load(Ordering::SeqCst) != gen {
                     return;
                 }
@@ -102,7 +102,7 @@ impl Rta {
                             }
                             sub_id = v[3].as_u64();
                             if let Some(cid) = v[4]["ConnectionId"].as_str() {
-                                *self.connection_id.lock().unwrap() = Some(cid.to_string());
+                                *self.connection_id.lock().unwrap_or_else(|e| e.into_inner()) = Some(cid.to_string());
                                 on(Event::Connected(cid.to_string()));
                             }
                         }
